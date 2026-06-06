@@ -1,6 +1,6 @@
 # Prompt Atom System v2 Expansion Development Plan
 
-Updated: 2026-06-06 18:42 HKT
+Updated: 2026-06-06 20:22 HKT
 
 ## 1. Objective
 
@@ -659,3 +659,12 @@ After reviewing this document, split implementation into separate goals:
 2. P3B: v2 category expansion and grouped UI.
 3. P3C: Negative Atom and priority compiler upgrade.
 4. P3D: Seed expansion, Mimo parser upgrade, and production QA.
+
+## 21. P4 Material Library Follow-Up Status
+
+Status on 2026-06-06: P4A-P4C are complete for the first production `髮型` 40 slice.
+
+1. P4A added structured app-owned expanded hair atoms in `src/lib/seed/expanded-atoms.ts`.
+2. P4B added the Gemini batch preview generator, manifest/resume contract, secret-safe env lookup, and `/api/uploads/atom-previews/[filename]`.
+3. P4C generated 40 local hair preview PNGs, validated the manifest/files, wired manifest-backed preview paths into `ensureExpandedAtoms()`, and verified DB/app/browser availability.
+4. P4D remains open for expanding the remaining approved material-library shards toward the 730 main / 840 full v2 targets.

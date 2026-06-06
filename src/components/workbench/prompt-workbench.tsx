@@ -1227,14 +1227,14 @@ function BigSelectorDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[94vh] flex-col overflow-hidden sm:max-w-[min(1480px,96vw)]">
+      <DialogContent className="flex max-h-[94vh] flex-col overflow-y-auto sm:max-w-[min(1480px,96vw)] lg:overflow-hidden">
         <DialogHeader>
           <DialogTitle>大圖選擇器</DialogTitle>
           <DialogDescription>切換分類、搜尋或用標籤篩選素材；選中後會同步到當前組合。</DialogDescription>
         </DialogHeader>
-        <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[300px_1fr]">
-          <aside className="flex min-h-0 flex-col gap-3 border-r pr-4">
-            <div className="min-h-0 overflow-y-auto pr-1">
+        <div className="grid flex-1 gap-4 lg:min-h-0 lg:grid-cols-[300px_1fr]">
+          <aside className="flex min-h-0 flex-col gap-3 border-b pb-4 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-4">
+            <div className="max-h-64 overflow-y-auto pr-1 lg:max-h-none lg:min-h-0">
               <div className="flex flex-col gap-3">
                 {CATEGORY_GROUPS.map((group) => (
                   <section key={group} className="flex flex-col gap-2">
@@ -1296,7 +1296,7 @@ function BigSelectorDialog({
                 </Button>
               ))}
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+            <div className="min-h-[420px] overflow-visible lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-1">
               {isLoading ? (
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                   {Array.from({ length: 8 }).map((_, index) => <Skeleton key={index} className="h-80 rounded-lg" />)}
