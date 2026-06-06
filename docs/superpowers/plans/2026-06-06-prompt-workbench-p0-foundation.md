@@ -370,3 +370,30 @@ Functional checks performed:
 10. Browser verification confirmed copy writes the current Prompt to clipboard.
 11. Browser verification confirmed reset clears the current combination and returns to default size/quality Prompt.
 12. Mobile viewport check at 390x844 confirmed no horizontal overflow after fixing the category toggle row.
+
+## P1 Prerequisite Re-Verification
+
+Updated: 2026-06-06
+
+Before P1 implementation, P0 was re-verified in the current repository state:
+
+1. `npm test` passed: 3 test files, 4 tests at the P1 start baseline.
+2. `npm run lint` passed.
+3. `npm run build` passed with Next.js 16.2.7.
+4. P0 database path remained `data/app.db`.
+5. P0 upload path remained `data/uploads/`.
+6. No P0 blocker required architecture rework for P1.
+
+## P2 Re-Verification
+
+Updated: 2026-06-06 17:14 HKT
+
+P0 foundation was re-verified during P2 hardening:
+
+1. `data/app.db` exists and persisted atom/Gallery records across dev server restart.
+2. `data/uploads/` served a newly uploaded PNG across dev server restart.
+3. `data/uploads/seed/` served seed PNG files successfully.
+4. Atom create/list/delete API paths were used for temporary P2 workflow records and cleanup.
+5. Upload API accepted an image upload and rejected a `text/plain` file with a Traditional Chinese error.
+6. Browser/CDP confirmed all 16 category slots render and the app has no horizontal overflow at 1440x900, 1280x800, and 390x844.
+7. Next.js 16 local dev origin behavior was hardened with `allowedDevOrigins: ["127.0.0.1"]`.

@@ -355,14 +355,63 @@ Never print or commit the real API key in the blocker report.
 
 ## Status Checklist
 
-- [ ] P0 prerequisite verified
-- [ ] Big image selector complete
-- [ ] Atom management complete
-- [ ] Gallery complete
-- [ ] Mimo parser complete
-- [ ] Model selector complete
-- [ ] Confirm parsed atoms complete
-- [ ] Seed images generated with Codex built-in image2 / GPT Image 2
-- [ ] Seed atoms inserted
-- [ ] Verification run
-- [ ] This plan updated with final status
+- [x] P0 prerequisite verified
+- [x] Big image selector complete
+- [x] Atom management complete
+- [x] Gallery complete
+- [x] Mimo parser complete
+- [x] Model selector complete
+- [x] Confirm parsed atoms complete
+- [x] Seed images generated with Codex built-in image2 / GPT Image 2
+- [x] Seed atoms inserted
+- [x] Verification run
+- [x] This plan updated with final status
+
+## Actual P1 Status
+
+Updated: 2026-06-06
+
+Implemented:
+
+1. Full big image selector Dialog with 16 category switching, search, tag filter, selected state, responsive card grid, clear current category, clear all, and done actions.
+2. Full atom card actions: select, unselect, view full Prompt, edit, copy Prompt, and delete.
+3. Full add/edit atom form with category, title, subtitle, preview image, Prompt, Negative Prompt, tags, and notes.
+4. Gallery API and UI for save, search, tag filter, sort, detail, copy, edit, delete, apply, and send to Prompt parsing.
+5. Gallery snapshot apply restores the current combination; Gallery without snapshot loads custom Prompt mode.
+6. Mimo model selector with `mimo-v2.5-pro`, `mimo-v2.5`, `mimo-v2-pro`, and `mimo-v2-omni`; default is `mimo-v2.5-pro` and selection persists through app settings.
+7. `POST /api/prompt/parse` implemented as a server-only Mimo caller using the OpenAI-compatible `/chat/completions` endpoint, with Zod validation and one repair attempt for invalid JSON.
+8. Missing `XIAOMI_MIMO_API_KEY` returns a clear error and preserves user input.
+9. Paste Prompt import Dialog and confirm parsed atoms Dialog implemented. Parsed drafts are editable, removable, individually saveable, and batch saveable; drafts are not saved automatically.
+10. 16 seed preview images generated during Codex implementation with built-in image2 / GPT Image 2 and copied to `data/uploads/seed/`.
+11. 16 seed atoms defined across all 16 categories, including all 4 multi-select categories, with local seed image references.
+12. Seed atom visible metadata uses Traditional Chinese; Prompt bodies remain useful English image Prompt fragments.
+
+Verification evidence:
+
+1. P0 prerequisite verification passed before implementation.
+2. Unit tests cover current combination snapshot restore, Gallery validation, prompt parse validation, and seed atom metadata.
+3. Browser verification confirmed the app renders, the big selector opens, seed atom metadata appears, and seed preview image serving works with nonzero natural image width.
+4. Browser verification confirmed selecting a seed atom updates selected state and compiled Prompt.
+5. Browser verification confirmed Gallery save with snapshot, snapshot apply, Gallery save without snapshot, and custom Prompt mode apply.
+6. Browser verification confirmed missing Mimo key error appears without clearing the pasted Prompt.
+7. Browser verification confirmed atom card action menu contains select/unselect, view full Prompt, edit, copy Prompt, and delete actions.
+8. Browser screenshots were captured and inspected for desktop and mobile top view; temporary QA screenshots were removed after verification.
+9. After `.env.local` setup, live `POST /api/prompt/parse` verification with `mimo-v2.5-pro` succeeded and returned 4 validated draft items.
+
+Known limitation:
+
+1. No remaining live Mimo verification blocker is known as of this update. The API key remains local-only in ignored `.env.local`.
+
+## P2 Re-Verification
+
+Updated: 2026-06-06 17:14 HKT
+
+P1 functionality was re-verified during P2 hardening:
+
+1. Big image selector opened in browser/CDP and displayed seed plus newly created verification atoms.
+2. Seed and uploaded preview images loaded with nonzero natural dimensions.
+3. Single-select replacement and multi-select add/remove behavior were verified in browser/CDP and covered by store tests.
+4. Gallery API create/search/tag/sort/snapshot/no-snapshot/delete paths were verified with temporary records and cleanup.
+5. Mimo parse API was live-verified for all four allowed models with schema-valid output.
+6. Missing-key behavior is covered by `src/lib/mimo/parser.test.ts`; invalid model API returned 400.
+7. Seed data remained 16 atoms and 16 image files after repeated bootstrap/list calls.

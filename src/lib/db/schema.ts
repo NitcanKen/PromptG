@@ -36,3 +36,6 @@ export const appSettings = sqliteTable("app_settings", {
 
 export type PromptAtomRow = typeof promptAtoms.$inferSelect;
 export type NewPromptAtomRow = typeof promptAtoms.$inferInsert;
+export type GalleryItemRow = typeof galleryItems.$inferSelect;
+export type NewGalleryItemRow = typeof galleryItems.$inferInsert;
+export type AppSettingRow = typeof appSettings.$inferSelect;

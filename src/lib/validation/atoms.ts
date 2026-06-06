@@ -1,8 +1,6 @@
 import { z } from "zod";
 
-import { CATEGORIES } from "@/lib/constants";
-
-const categorySchema = z.enum(CATEGORIES);
+import { categorySchema } from "@/lib/validation/shared";
 
 const atomBaseSchema = z.object({
   category: categorySchema,

@@ -44,6 +44,8 @@ data/*.db-shm
 data/**/*.tmp
 data/uploads/*
 !data/uploads/.gitkeep
+!data/uploads/seed/
+!data/uploads/seed/**
 
 # vercel
 .vercel

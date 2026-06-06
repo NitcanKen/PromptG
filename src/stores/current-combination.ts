@@ -36,11 +36,24 @@ export type CurrentCombinationState = {
   selectAtom: (atom: SelectedAtom) => void;
   removeAtom: (category: Category, atomId?: string) => void;
   clearCategory: (category: Category) => void;
+  applySnapshot: (snapshot: CurrentCombinationSnapshot) => void;
+  applyGalleryItem: (item: GalleryCombinationSource) => void;
   setSizePreset: (sizePreset: SizePresetId) => void;
   setQualityPreset: (qualityPreset: QualityPresetId) => void;
   setCompilerMode: (compilerMode: CompilerMode) => void;
   setCustomPrompt: (customPrompt: string) => void;
   reset: () => void;
+};
+
+export type CurrentCombinationSnapshot = {
+  selectedAtoms: Partial<Record<Category, SelectedAtom[]>>;
+  sizePreset: SizePresetId;
+  qualityPreset: QualityPresetId;
+};
+
+export type GalleryCombinationSource = {
+  prompt: string;
+  combinationSnapshot: CurrentCombinationSnapshot | null;
 };
 
 const initialState = {
@@ -92,6 +105,29 @@ const currentCombinationStateCreator: StateCreator<CurrentCombinationState> = (s
         [category]: [],
       },
     })),
+  applySnapshot: (snapshot) =>
+    set({
+      selectedAtoms: snapshot.selectedAtoms,
+      sizePreset: snapshot.sizePreset,
+      qualityPreset: snapshot.qualityPreset,
+      compilerMode: "auto",
+      customPrompt: "",
+    }),
+  applyGalleryItem: (item) =>
+    set(
+      item.combinationSnapshot
+        ? {
+            selectedAtoms: item.combinationSnapshot.selectedAtoms,
+            sizePreset: item.combinationSnapshot.sizePreset,
+            qualityPreset: item.combinationSnapshot.qualityPreset,
+            compilerMode: "auto",
+            customPrompt: "",
+          }
+        : {
+            compilerMode: "custom",
+            customPrompt: item.prompt,
+          },
+    ),
   setSizePreset: (sizePreset) => set({ sizePreset }),
   setQualityPreset: (qualityPreset) => set({ qualityPreset }),
   setCompilerMode: (compilerMode) => set({ compilerMode }),

@@ -326,16 +326,60 @@ Do not claim production ready with unresolved critical workflow failures.
 
 ## Status Checklist
 
-- [ ] P0 actual status verified
-- [ ] P1 actual status verified
-- [ ] Build passes
-- [ ] Lint passes or accepted blocker documented
-- [ ] Tests pass
-- [ ] Secret scan passes
-- [ ] Critical workflows A-F verified
-- [ ] Responsive UI verified
-- [ ] Traditional Chinese UI copy verified
-- [ ] Accessibility basics verified
-- [ ] README complete
-- [ ] `.env.example` complete
-- [ ] Final production readiness report written
+- [x] P0 actual status verified
+- [x] P1 actual status verified
+- [x] Build passes
+- [x] Lint passes or accepted blocker documented
+- [x] Tests pass
+- [x] Secret scan passes
+- [x] Critical workflows A-F verified
+- [x] Responsive UI verified
+- [x] Traditional Chinese UI copy verified
+- [x] Accessibility basics verified
+- [x] README complete
+- [x] `.env.example` complete
+- [x] Final production readiness report written
+
+## Actual P2 Status
+
+Updated: 2026-06-06 17:14 HKT
+
+Implemented hardening:
+
+1. Upload validation was factored into `src/lib/validation/uploads.ts` and covered by tests for accepted image MIME types, non-image rejection, and max-size rejection.
+2. Gallery snapshot fallback was moved into the current-combination store as `applyGalleryItem`, with regression coverage for no-snapshot custom Prompt mode.
+3. Test coverage was expanded for atom validation defaults/rejections, multi-select removal, and missing Mimo key handling.
+4. `next.config.ts` now includes `allowedDevOrigins: ["127.0.0.1"]` after fresh Next.js 16 local QA showed 127.0.0.1 dev resources were blocked without it.
+5. `README.md`, `.env.example`, `docs/local-data.md`, and `docs/superpowers/reports/2026-06-06-prompt-workbench-p2-production-readiness.md` were created or updated.
+
+Fresh verification evidence:
+
+1. Final `npm run lint` passed.
+2. Final `npm run build` passed on Next.js 16.2.7.
+3. Final `npm test` passed: 8 files, 20 tests.
+4. Targeted post-change tests passed:
+   - `src/lib/validation/uploads.test.ts`: 3 tests
+   - `src/stores/current-combination.test.ts`: 5 tests after multi-select and Gallery fallback coverage
+   - `src/lib/validation/atoms.test.ts`
+   - `src/lib/mimo/parser.test.ts`
+5. Secret scan showed no real keys. Matches were self-referential command text in docs/README plus `package-lock.json` false positive on `microtask-1`.
+6. Seed check passed: 16 seed atoms before and after bootstrap/list call, 16 seed image files.
+7. Persistence check passed across dev server restart for DB atom, Gallery item, uploaded image, and seed image.
+8. Mimo live verification passed for all allowed models:
+   - `mimo-v2.5-pro`: 4 schema-valid items
+   - `mimo-v2.5`: 4 schema-valid items
+   - `mimo-v2-pro`: 3 schema-valid items
+   - `mimo-v2-omni`: 4 schema-valid items
+9. Browser/CDP responsive checks passed at 1440x900, 1280x800, and 390x844 with no horizontal overflow.
+10. Browser/CDP workflow checks verified selector image loading, atom selection, single-select replacement, multi-select add/remove, custom Prompt preservation, auto Prompt regeneration, copy trigger, reset, Gallery API CRUD/search/fallback shape, upload rejection, invalid Mimo model rejection, and seed rendering.
+
+Tooling notes:
+
+1. The in-app Browser opened the local page but did not reliably execute interactions for this Base UI app surface.
+2. Computer Use could read Safari state but rejected click actions in this session.
+3. Chrome DevTools Protocol was used as the reliable browser automation fallback for interaction and viewport verification.
+
+Residual risks:
+
+1. Missing-key browser UI was not re-run under a no-key dev server because this machine has a valid ignored `.env.local`; parser-level missing-key behavior is covered by test and invalid model API behavior was verified.
+2. P2 scope remains local-first. No deployment, auth, sharing, payment, or cloud sync readiness is claimed.

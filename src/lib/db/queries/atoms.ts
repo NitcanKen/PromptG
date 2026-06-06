@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 
 import { getDb } from "@/lib/db/client";
 import { promptAtoms, type PromptAtomRow } from "@/lib/db/schema";
+import { ensureSeedAtoms } from "@/lib/seed/bootstrap";
 import type { AtomInput, AtomUpdate } from "@/lib/validation/atoms";
 
 export type PromptAtom = {
@@ -45,6 +46,8 @@ export function toPromptAtom(row: PromptAtomRow): PromptAtom {
 }
 
 export async function listAtoms(filters: { category?: string; q?: string } = {}) {
+  await ensureSeedAtoms();
+
   const db = getDb();
   const q = filters.q?.trim();
   const query = q ? `%${q}%` : undefined;
