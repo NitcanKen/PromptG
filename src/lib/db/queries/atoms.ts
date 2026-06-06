@@ -4,6 +4,12 @@ import { randomUUID } from "node:crypto";
 import { getDb } from "@/lib/db/client";
 import { promptAtoms, type PromptAtomRow } from "@/lib/db/schema";
 import { ensureSeedAtoms } from "@/lib/seed/bootstrap";
+import {
+  DEFAULT_LOCK_POLICY,
+  DEFAULT_PROMPT_PRIORITY,
+  type LockPolicy,
+  type PromptPriority,
+} from "@/lib/constants";
 import type { AtomInput, AtomUpdate } from "@/lib/validation/atoms";
 
 export type PromptAtom = {
@@ -14,6 +20,8 @@ export type PromptAtom = {
   previewImagePath: string;
   prompt: string;
   negativePrompt: string;
+  priority: PromptPriority;
+  lockPolicy: LockPolicy;
   tags: string[];
   notes: string;
   createdAt: string;
@@ -38,6 +46,8 @@ export function toPromptAtom(row: PromptAtomRow): PromptAtom {
     previewImagePath: row.previewImagePath,
     prompt: row.prompt,
     negativePrompt: row.negativePrompt,
+    priority: (row.priority as PromptPriority | undefined) ?? DEFAULT_PROMPT_PRIORITY,
+    lockPolicy: (row.lockPolicy as LockPolicy | undefined) ?? DEFAULT_LOCK_POLICY,
     tags: parseTags(row.tagsJson),
     notes: row.notes,
     createdAt: row.createdAt,
@@ -84,6 +94,8 @@ export async function createAtom(input: AtomInput) {
     previewImagePath: input.previewImagePath,
     prompt: input.prompt,
     negativePrompt: input.negativePrompt,
+    priority: input.priority,
+    lockPolicy: input.lockPolicy,
     tagsJson: JSON.stringify(input.tags),
     notes: input.notes,
     createdAt: now,
@@ -110,6 +122,8 @@ export async function updateAtom(id: string, input: AtomUpdate) {
     ...("previewImagePath" in input ? { previewImagePath: input.previewImagePath } : {}),
     ...("prompt" in input ? { prompt: input.prompt } : {}),
     ...("negativePrompt" in input ? { negativePrompt: input.negativePrompt } : {}),
+    ...("priority" in input ? { priority: input.priority } : {}),
+    ...("lockPolicy" in input ? { lockPolicy: input.lockPolicy } : {}),
     ...("tags" in input ? { tagsJson: JSON.stringify(input.tags) } : {}),
     ...("notes" in input ? { notes: input.notes } : {}),
     updatedAt: new Date().toISOString(),

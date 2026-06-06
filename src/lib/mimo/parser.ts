@@ -3,6 +3,7 @@ import {
   parsedPromptOutputSchema,
   type ParsedPromptOutput,
 } from "@/lib/validation/prompt-parse";
+import { CATEGORIES, CATEGORY_METADATA, DEFAULT_CATEGORY } from "@/lib/constants";
 
 const defaultBaseUrl = "https://token-plan-sgp.xiaomimimo.com/v1";
 
@@ -41,13 +42,7 @@ async function requestMimo({
   prompt: string;
   repairText?: string;
 }) {
-  const system = [
-    "你是 Prompt 素材拆解助手。",
-    "只輸出 JSON，不要 Markdown。",
-    "把完整圖片 Prompt 拆成可重用素材草稿。",
-    "category 必須是以下之一：人設、表情、姿態、上裝、下裝、鞋履、場景、寫真風格、光影、畫面影響、版式設計、配飾、道具、鏡頭質感、景別、妝容。",
-    "title、subtitle、tags、notes 使用繁體中文；prompt 可保留英文。",
-  ].join("\n");
+  const system = buildMimoParserSystemPrompt();
 
   const user = repairText
     ? [
@@ -59,7 +54,7 @@ async function requestMimo({
       ].join("\n\n")
     : [
         "請把以下完整圖片 Prompt 拆成素材草稿，輸出格式：",
-        '{"items":[{"category":"人設","title":"短標題","subtitle":"一句效果說明","prompt":"可直接拼接進完整 Prompt 的片段","negativePrompt":"","tags":["標籤一","標籤二"],"notes":"拆解依據或使用建議"}]}',
+        `{"items":[{"category":"${DEFAULT_CATEGORY}","title":"短標題","subtitle":"一句效果說明","prompt":"可直接拼接進完整 Prompt 的片段","negativePrompt":"","tags":["標籤一","標籤二"],"notes":"拆解依據或使用建議"}]}`,
         "每個 tags 最多 8 個，不要自動保存。",
         "完整 Prompt:",
         prompt,
@@ -100,6 +95,28 @@ async function requestMimo({
   }
 
   return content;
+}
+
+export function buildMimoParserSystemPrompt() {
+  const categoryGuidance = CATEGORY_METADATA.map((category) => {
+    const examples = category.examples.join("、");
+    const selectionMode = category.selectionMode === "single" ? "單選" : "多選";
+
+    return `- ${category.label}（${category.group}，${selectionMode}）：${category.description} 例：${examples}`;
+  }).join("\n");
+
+  return [
+    "你是 Prompt 素材拆解助手。",
+    "只輸出 JSON，不要 Markdown。",
+    "把完整圖片 Prompt 拆成可重用素材草稿。",
+    `category 必須是以下之一：${CATEGORIES.join("、")}`,
+    "分類說明：",
+    categoryGuidance,
+    "title、subtitle、tags、notes 使用繁體中文；prompt 可保留英文。",
+    "請優先拆成細顆粒 atoms，不要把髮型、臉部特徵、表情、視線、姿態、手部動作混在同一個「人設」或「姿態」裡。",
+    "可重用的負面約束請使用 Negative Atom。",
+    "除非原始 Prompt 明確包含尺寸、比例、解析度或品質控制，否則不要輸出「尺寸」或「質量」素材。",
+  ].join("\n");
 }
 
 function parseMimoJson(content: string): ParsedPromptOutput {

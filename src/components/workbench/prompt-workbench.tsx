@@ -21,14 +21,28 @@ import {
 } from "lucide-react";
 
 import {
-  CATEGORIES,
+  CATEGORIES_BY_GROUP,
+  CATEGORY_GROUPS,
+  CATEGORY_METADATA_BY_LABEL,
   CATEGORY_SELECTION_MODE,
+  DEFAULT_LOCK_POLICY,
+  DEFAULT_CATEGORY,
+  DEFAULT_PROMPT_PRIORITY,
   DEFAULT_MIMO_MODEL,
+  LOCK_POLICIES,
+  LOCK_POLICY_DESCRIPTIONS,
+  LOCK_POLICY_LABELS,
   MIMO_MODELS,
+  PROMPT_PRIORITIES,
+  PROMPT_PRIORITY_DESCRIPTIONS,
+  PROMPT_PRIORITY_LABELS,
   QUALITY_PRESETS,
   SIZE_PRESETS,
   type Category,
+  type CategoryGroup,
+  type LockPolicy,
   type MimoModel,
+  type PromptPriority,
   type QualityPresetId,
   type SizePresetId,
 } from "@/lib/constants";
@@ -82,6 +96,8 @@ type AtomFormState = {
   previewImagePath: string;
   prompt: string;
   negativePrompt: string;
+  priority: PromptPriority;
+  lockPolicy: LockPolicy;
   tagsText: string;
   notes: string;
 };
@@ -106,17 +122,21 @@ type ParsedDraft = {
   subtitle: string;
   prompt: string;
   negativePrompt: string;
+  priority: PromptPriority;
+  lockPolicy: LockPolicy;
   tagsText: string;
   notes: string;
 };
 
 const emptyAtomForm: AtomFormState = {
-  category: "人設",
+  category: DEFAULT_CATEGORY,
   title: "",
   subtitle: "",
   previewImagePath: "",
   prompt: "",
   negativePrompt: "",
+  priority: DEFAULT_PROMPT_PRIORITY,
+  lockPolicy: DEFAULT_LOCK_POLICY,
   tagsText: "",
   notes: "",
 };
@@ -139,7 +159,15 @@ function splitTags(tagsText: string) {
     .filter(Boolean);
 }
 
-function atomToForm(atom?: PromptAtom, category: Category = "人設"): AtomFormState {
+function categoryGroupOf(category: Category): CategoryGroup {
+  return CATEGORY_METADATA_BY_LABEL[category].group;
+}
+
+function categoriesInGroup(group: CategoryGroup) {
+  return CATEGORIES_BY_GROUP[group];
+}
+
+function atomToForm(atom?: PromptAtom, category: Category = DEFAULT_CATEGORY): AtomFormState {
   if (!atom) {
     return { ...emptyAtomForm, category };
   }
@@ -152,6 +180,8 @@ function atomToForm(atom?: PromptAtom, category: Category = "人設"): AtomFormS
     previewImagePath: atom.previewImagePath,
     prompt: atom.prompt,
     negativePrompt: atom.negativePrompt,
+    priority: atom.priority,
+    lockPolicy: atom.lockPolicy,
     tagsText: atom.tags.join("、"),
     notes: atom.notes,
   };
@@ -165,6 +195,8 @@ function atomFormPayload(form: AtomFormState) {
     previewImagePath: form.previewImagePath,
     prompt: form.prompt,
     negativePrompt: form.negativePrompt,
+    priority: form.priority,
+    lockPolicy: form.lockPolicy,
     tags: splitTags(form.tagsText),
     notes: form.notes,
   };
@@ -220,6 +252,8 @@ function draftToAtomPayload(draft: ParsedDraft) {
     previewImagePath: "",
     prompt: draft.prompt,
     negativePrompt: draft.negativePrompt,
+    priority: draft.priority,
+    lockPolicy: draft.lockPolicy,
     tags: splitTags(draft.tagsText).slice(0, 8),
     notes: draft.notes,
   };
@@ -231,7 +265,8 @@ export function PromptWorkbench() {
   const [isLoadingAtoms, setIsLoadingAtoms] = useState(true);
   const [isLoadingGallery, setIsLoadingGallery] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [activeCategory, setActiveCategory] = useState<Category>("人設");
+  const [activeCategory, setActiveCategory] = useState<Category>(DEFAULT_CATEGORY);
+  const [showAllCombinationCategories, setShowAllCombinationCategories] = useState(false);
   const [selectorSearch, setSelectorSearch] = useState("");
   const [selectorTag, setSelectorTag] = useState("");
   const [isSelectorOpen, setIsSelectorOpen] = useState(false);
@@ -275,7 +310,10 @@ export function PromptWorkbench() {
     () => compilePrompt({ selectedAtoms, sizePreset, qualityPreset }),
     [qualityPreset, selectedAtoms, sizePreset],
   );
-  const promptText = compilerMode === "auto" ? compiledPrompt : customPrompt;
+  const promptText = compilerMode === "auto" ? compiledPrompt.positivePrompt : customPrompt;
+  const negativePromptText = compilerMode === "auto" ? compiledPrompt.negativePrompt : "";
+  const combinedPromptText =
+    compilerMode === "auto" ? compiledPrompt.combinedPrompt : customPrompt;
   const selectedCount = Object.values(selectedAtoms).reduce(
     (total, items) => total + (items?.length ?? 0),
     0,
@@ -291,15 +329,17 @@ export function PromptWorkbench() {
   const selectorTags = useMemo(() => {
     const tags = new Set<string>();
     atoms
-      .filter((atom) => atom.category === activeCategory)
+      .filter((atom) =>
+        selectorKeyword ? matchesSearch(atom, selectorKeyword) : atom.category === activeCategory,
+      )
       .forEach((atom) => atom.tags.forEach((tag) => tags.add(tag)));
     return [...tags].sort((a, b) => a.localeCompare(b, "zh-Hant"));
-  }, [activeCategory, atoms]);
+  }, [activeCategory, atoms, selectorKeyword]);
   const selectorAtoms = useMemo(
     () =>
       atoms.filter(
         (atom) =>
-          atom.category === activeCategory &&
+          (selectorKeyword ? matchesSearch(atom, selectorKeyword) : atom.category === activeCategory) &&
           matchesSearch(atom, selectorKeyword) &&
           (!selectorTag || atom.tags.includes(selectorTag)),
       ),
@@ -396,7 +436,7 @@ export function PromptWorkbench() {
     const fallback: GalleryFormState = {
       ...emptyGalleryForm,
       title: "未命名 Prompt",
-      prompt: promptText,
+      prompt: combinedPromptText,
       sizePreset,
       qualityPreset,
       combinationSnapshot: currentSnapshot,
@@ -528,7 +568,7 @@ export function PromptWorkbench() {
   function updateCompilerMode(value: string[]) {
     const nextMode = value[0] as CompilerMode | undefined;
     if (!nextMode) return;
-    if (nextMode === "custom" && compilerMode === "auto") setCustomPrompt(compiledPrompt);
+    if (nextMode === "custom" && compilerMode === "auto") setCustomPrompt(combinedPromptText);
     setCompilerMode(nextMode);
   }
 
@@ -571,6 +611,8 @@ export function PromptWorkbench() {
         subtitle: item.subtitle,
         prompt: item.prompt,
         negativePrompt: item.negativePrompt,
+        priority: DEFAULT_PROMPT_PRIORITY,
+        lockPolicy: DEFAULT_LOCK_POLICY,
         tagsText: item.tags.join("、"),
         notes: item.notes,
       })),
@@ -721,9 +763,16 @@ export function PromptWorkbench() {
                 <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                   <div className="flex flex-col gap-1">
                     <CardTitle>當前組合</CardTitle>
-                    <CardDescription>點擊任一分類槽位可打開大圖選擇器。</CardDescription>
+                    <CardDescription>按分類群組管理素材；點擊分類槽位可打開大圖選擇器。</CardDescription>
                   </div>
                   <div className="flex flex-wrap gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowAllCombinationCategories((current) => !current)}
+                    >
+                      {showAllCombinationCategories ? "只顯示已選分類" : "顯示全部分類"}
+                    </Button>
                     <Button variant="outline" size="sm" onClick={() => openCreateAtom(activeCategory)}>
                       <ImagePlusIcon data-icon="inline-start" />
                       建立目前分類素材
@@ -735,19 +784,54 @@ export function PromptWorkbench() {
                   </div>
                 </div>
               </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                  {CATEGORIES.map((category) => (
-                    <CategorySlot
-                      key={category}
-                      category={category}
-                      selected={selectedAtoms[category] ?? []}
-                      onOpen={() => openSelector(category)}
-                      onCreate={() => openCreateAtom(category)}
-                      onRemove={(atomId) => removeAtom(category, atomId)}
-                    />
-                  ))}
-                </div>
+              <CardContent className="flex flex-col gap-4">
+                {CATEGORY_GROUPS.map((group) => {
+                  const groupCategories = categoriesInGroup(group);
+                  const visibleCategories = showAllCombinationCategories
+                    ? groupCategories
+                    : groupCategories.filter((category) => (selectedAtoms[category]?.length ?? 0) > 0);
+                  const selectedInGroup = groupCategories.reduce(
+                    (total, category) => total + (selectedAtoms[category]?.length ?? 0),
+                    0,
+                  );
+
+                  return (
+                    <section key={group} className="rounded-lg border bg-card">
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-b px-3 py-2">
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-sm font-semibold">{group}</h3>
+                          <Badge variant="secondary">{selectedInGroup} 個已選</Badge>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => openSelector(groupCategories[0])}
+                        >
+                          <ImagesIcon data-icon="inline-start" />
+                          打開群組
+                        </Button>
+                      </div>
+                      <div className="grid gap-2 p-3 md:grid-cols-2 2xl:grid-cols-3">
+                        {visibleCategories.length > 0 ? (
+                          visibleCategories.map((category) => (
+                            <CategorySlot
+                              key={category}
+                              category={category}
+                              selected={selectedAtoms[category] ?? []}
+                              onOpen={() => openSelector(category)}
+                              onCreate={() => openCreateAtom(category)}
+                              onRemove={(atomId) => removeAtom(category, atomId)}
+                            />
+                          ))
+                        ) : (
+                          <div className="rounded-md border border-dashed bg-muted/30 px-3 py-4 text-sm text-muted-foreground">
+                            尚未選擇此群組素材。
+                          </div>
+                        )}
+                      </div>
+                    </section>
+                  );
+                })}
               </CardContent>
             </Card>
 
@@ -783,22 +867,36 @@ export function PromptWorkbench() {
             <Card>
               <CardHeader className="border-b">
                 <CardTitle>Prompt 編譯器</CardTitle>
-                <CardDescription>自動模式按固定順序編譯；自定義模式不會被素材覆蓋。</CardDescription>
+                <CardDescription>自動模式會分離正向與 Negative Prompt；自定義模式不會被素材覆蓋。</CardDescription>
               </CardHeader>
               <CardContent className="flex flex-col gap-3">
                 <ToggleGroup value={[compilerMode]} onValueChange={updateCompilerMode} variant="outline" size="sm">
                   <ToggleGroupItem value="auto">自動</ToggleGroupItem>
                   <ToggleGroupItem value="custom">自定義</ToggleGroupItem>
                 </ToggleGroup>
-                <Textarea
-                  value={promptText}
-                  onChange={(event) => setCustomPrompt(event.target.value)}
-                  readOnly={compilerMode === "auto"}
-                  className="min-h-[320px] resize-y font-mono text-sm leading-6"
-                  placeholder="選擇素材後會自動生成完整 Prompt"
-                />
+                <Field>
+                  <FieldLabel htmlFor="compiled-positive">Prompt</FieldLabel>
+                  <Textarea
+                    id="compiled-positive"
+                    value={promptText}
+                    onChange={(event) => setCustomPrompt(event.target.value)}
+                    readOnly={compilerMode === "auto"}
+                    className="min-h-[260px] resize-y font-mono text-sm leading-6"
+                    placeholder="選擇素材後會自動生成完整 Prompt"
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="compiled-negative">Negative Prompt</FieldLabel>
+                  <Textarea
+                    id="compiled-negative"
+                    value={negativePromptText}
+                    readOnly
+                    className="min-h-24 resize-y font-mono text-sm leading-6"
+                    placeholder="選擇 Negative Atom 或帶有 Negative Prompt 的素材後會自動生成"
+                  />
+                </Field>
               </CardContent>
-              <CardFooter className="justify-end gap-2 border-t">
+              <CardFooter className="flex-wrap justify-end gap-2 border-t">
                 <Button
                   variant="outline"
                   onClick={() => {
@@ -813,6 +911,32 @@ export function PromptWorkbench() {
                   <ClipboardIcon data-icon="inline-start" />
                   複製 Prompt
                 </Button>
+                <Button
+                  variant="outline"
+                  onClick={() =>
+                    void copyText(
+                      negativePromptText,
+                      "目前沒有可複製的 Negative Prompt",
+                      "Negative Prompt 已複製",
+                    )
+                  }
+                >
+                  <ClipboardIcon data-icon="inline-start" />
+                  複製 Negative Prompt
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() =>
+                    void copyText(
+                      combinedPromptText,
+                      "目前沒有可複製的完整 Prompt",
+                      "完整 Prompt 已複製",
+                    )
+                  }
+                >
+                  <ClipboardIcon data-icon="inline-start" />
+                  複製完整 Prompt
+                </Button>
               </CardFooter>
             </Card>
 
@@ -826,19 +950,26 @@ export function PromptWorkbench() {
                   <ImagesIcon data-icon="inline-start" />
                   打開大圖選擇器
                 </Button>
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  {CATEGORIES.map((category) => (
-                    <button
-                      key={category}
-                      type="button"
-                      onClick={() => openSelector(category)}
-                      className="flex items-center justify-between rounded-md border px-3 py-2 text-left hover:bg-accent"
-                    >
-                      <span>{category}</span>
-                      <Badge variant="secondary">
-                        {atoms.filter((atom) => atom.category === category).length}
-                      </Badge>
-                    </button>
+                <div className="flex flex-col gap-3 text-sm">
+                  {CATEGORY_GROUPS.map((group) => (
+                    <section key={group} className="flex flex-col gap-2">
+                      <div className="text-xs font-medium text-muted-foreground">{group}</div>
+                      <div className="grid grid-cols-2 gap-2">
+                        {categoriesInGroup(group).map((category) => (
+                          <button
+                            key={category}
+                            type="button"
+                            onClick={() => openSelector(category)}
+                            className="flex items-center justify-between gap-2 rounded-md border px-3 py-2 text-left hover:bg-accent"
+                          >
+                            <span className="min-w-0 truncate">{category}</span>
+                            <Badge variant="secondary">
+                              {atoms.filter((atom) => atom.category === category).length}
+                            </Badge>
+                          </button>
+                        ))}
+                      </div>
+                    </section>
                   ))}
                 </div>
               </CardContent>
@@ -993,9 +1124,10 @@ function CategorySlot({
   onRemove: (atomId: string) => void;
 }) {
   const mode = CATEGORY_SELECTION_MODE[category];
+  const metadata = CATEGORY_METADATA_BY_LABEL[category];
 
   return (
-    <div className={cn("flex min-h-48 flex-col gap-2 rounded-lg border bg-card p-3 text-left", selected.length > 0 ? "border-primary/40" : "border-border")}>
+    <div className={cn("flex min-h-32 flex-col gap-2 rounded-md border bg-background p-3 text-left", selected.length > 0 ? "border-primary/40" : "border-border")}>
       <div role="button" tabIndex={0} onClick={onOpen} onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
@@ -1003,17 +1135,20 @@ function CategorySlot({
         }
       }} className="flex flex-1 cursor-pointer flex-col gap-2 text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
         <div className="flex items-center justify-between gap-2">
-          <span className="text-sm font-medium">{category}</span>
+          <div className="min-w-0">
+            <span className="block truncate text-sm font-medium">{category}</span>
+            <span className="line-clamp-1 text-xs text-muted-foreground">{metadata.description}</span>
+          </div>
           <Badge variant="secondary">{mode === "single" ? "單選" : "多選"}</Badge>
         </div>
         {selected.length === 0 ? (
-          <div className="flex min-h-32 flex-1 items-center justify-center rounded-md border border-dashed bg-muted/30 text-sm text-muted-foreground">
+          <div className="flex min-h-16 flex-1 items-center justify-center rounded-md border border-dashed bg-muted/30 text-sm text-muted-foreground">
             點擊選擇{category}
           </div>
         ) : (
           <div className="flex flex-col gap-2">
             {selected.map((atom) => (
-              <div key={atom.id} className="grid grid-cols-[72px_1fr_auto] gap-2 rounded-md bg-muted/40 p-2">
+              <div key={atom.id} className="grid grid-cols-[48px_1fr_auto] gap-2 rounded-md bg-muted/40 p-2">
                 <PreviewImage src={atom.previewImagePath} alt={`${atom.title} 預覽圖`} />
                 <div className="min-w-0">
                   <div className="truncate text-sm font-medium">{atom.title}</div>
@@ -1032,7 +1167,7 @@ function CategorySlot({
       </div>
       <Button type="button" variant="outline" size="sm" onClick={onCreate}>
         <PlusIcon data-icon="inline-start" />
-        新增{category}
+        新增
       </Button>
     </div>
   );
@@ -1087,6 +1222,8 @@ function BigSelectorDialog({
 }) {
   const activeSelected = selectedAtoms[activeCategory] ?? [];
   const selectedCount = Object.values(selectedAtoms).reduce((total, items) => total + (items?.length ?? 0), 0);
+  const activeGroup = categoryGroupOf(activeCategory);
+  const isGlobalSearch = search.trim().length > 0;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -1095,23 +1232,40 @@ function BigSelectorDialog({
           <DialogTitle>大圖選擇器</DialogTitle>
           <DialogDescription>切換分類、搜尋或用標籤篩選素材；選中後會同步到當前組合。</DialogDescription>
         </DialogHeader>
-        <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[230px_1fr]">
+        <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[300px_1fr]">
           <aside className="flex min-h-0 flex-col gap-3 border-r pr-4">
-            <div className="grid gap-2">
-              {CATEGORIES.map((category) => (
-                <button
-                  key={category}
-                  type="button"
-                  onClick={() => onCategoryChange(category)}
-                  className={cn(
-                    "flex items-center justify-between rounded-md border px-3 py-2 text-sm transition-colors hover:bg-accent",
-                    activeCategory === category && "border-primary bg-primary/10",
-                  )}
-                >
-                  <span>{category}</span>
-                  <Badge variant="secondary">{selectedAtoms[category]?.length ?? 0}</Badge>
-                </button>
-              ))}
+            <div className="min-h-0 overflow-y-auto pr-1">
+              <div className="flex flex-col gap-3">
+                {CATEGORY_GROUPS.map((group) => (
+                  <section key={group} className="flex flex-col gap-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-medium text-muted-foreground">{group}</span>
+                      <Badge variant={activeGroup === group ? "default" : "secondary"}>
+                        {categoriesInGroup(group).reduce(
+                          (total, category) => total + (selectedAtoms[category]?.length ?? 0),
+                          0,
+                        )}
+                      </Badge>
+                    </div>
+                    <div className="grid gap-1">
+                      {categoriesInGroup(group).map((category) => (
+                        <button
+                          key={category}
+                          type="button"
+                          onClick={() => onCategoryChange(category)}
+                          className={cn(
+                            "flex items-center justify-between gap-2 rounded-md border px-3 py-2 text-left text-sm transition-colors hover:bg-accent",
+                            activeCategory === category && "border-primary bg-primary/10",
+                          )}
+                        >
+                          <span className="min-w-0 truncate">{category}</span>
+                          <Badge variant="secondary">{selectedAtoms[category]?.length ?? 0}</Badge>
+                        </button>
+                      ))}
+                    </div>
+                  </section>
+                ))}
+              </div>
             </div>
           </aside>
           <section className="flex min-h-0 flex-col gap-3">
@@ -1132,7 +1286,9 @@ function BigSelectorDialog({
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="secondary">{activeCategory}</Badge>
+              <Badge variant="secondary">
+                {isGlobalSearch ? "全部分類搜尋" : `${activeGroup} / ${activeCategory}`}
+              </Badge>
               <Button variant={tag ? "outline" : "secondary"} size="sm" onClick={() => onTagChange("")}>全部標籤</Button>
               {tags.map((item) => (
                 <Button key={item} variant={tag === item ? "default" : "outline"} size="sm" onClick={() => onTagChange(item)}>
@@ -1267,6 +1423,52 @@ function AtomCard({
   );
 }
 
+function CategoryPicker({
+  value,
+  onChange,
+}: {
+  value: Category;
+  onChange: (category: Category) => void;
+}) {
+  const activeGroup = categoryGroupOf(value);
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap gap-2" role="group" aria-label="分類群組">
+        {CATEGORY_GROUPS.map((group) => (
+          <Button
+            key={group}
+            type="button"
+            variant={activeGroup === group ? "default" : "outline"}
+            size="sm"
+            onClick={() => onChange(categoriesInGroup(group)[0])}
+          >
+            {group}
+          </Button>
+        ))}
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2" id="atom-category">
+        {categoriesInGroup(activeGroup).map((category) => (
+          <button
+            key={category}
+            type="button"
+            onClick={() => onChange(category)}
+            className={cn(
+              "rounded-md border px-3 py-2 text-left text-sm transition-colors hover:bg-accent",
+              value === category && "border-primary bg-primary/10",
+            )}
+          >
+            <span className="block font-medium">{category}</span>
+            <span className="line-clamp-1 text-xs text-muted-foreground">
+              {CATEGORY_METADATA_BY_LABEL[category].description}
+            </span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function AtomFormDialog({
   open,
   form,
@@ -1296,10 +1498,12 @@ function AtomFormDialog({
             <div className="grid gap-4 md:grid-cols-2">
               <Field>
                 <FieldLabel htmlFor="atom-category">分類</FieldLabel>
-                <Select items={CATEGORIES.map((category) => ({ label: category, value: category }))} value={form.category} onValueChange={(value) => value && onFormChange((current) => ({ ...current, category: value as Category }))}>
-                  <SelectTrigger id="atom-category" className="w-full"><SelectValue /></SelectTrigger>
-                  <SelectContent><SelectGroup>{CATEGORIES.map((category) => <SelectItem key={category} value={category}>{category}</SelectItem>)}</SelectGroup></SelectContent>
-                </Select>
+                <CategoryPicker
+                  value={form.category}
+                  onChange={(category) =>
+                    onFormChange((current) => ({ ...current, category }))
+                  }
+                />
               </Field>
               <Field>
                 <FieldLabel htmlFor="atom-title">標題</FieldLabel>
@@ -1310,6 +1514,68 @@ function AtomFormDialog({
               <FieldLabel htmlFor="atom-subtitle">副標題</FieldLabel>
               <Input id="atom-subtitle" value={form.subtitle} onChange={(event) => onFormChange((current) => ({ ...current, subtitle: event.target.value }))} />
             </Field>
+            <div className="grid gap-4 md:grid-cols-2">
+              <Field>
+                <FieldLabel htmlFor="atom-priority">Prompt 強度</FieldLabel>
+                <Select
+                  items={PROMPT_PRIORITIES.map((priority) => ({
+                    label: PROMPT_PRIORITY_LABELS[priority],
+                    value: priority,
+                  }))}
+                  value={form.priority}
+                  onValueChange={(value) =>
+                    value &&
+                    onFormChange((current) => ({
+                      ...current,
+                      priority: value as PromptPriority,
+                    }))
+                  }
+                >
+                  <SelectTrigger id="atom-priority" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      {PROMPT_PRIORITIES.map((priority) => (
+                        <SelectItem key={priority} value={priority}>
+                          {PROMPT_PRIORITY_LABELS[priority]}｜{PROMPT_PRIORITY_DESCRIPTIONS[priority]}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="atom-lock-policy">覆蓋策略</FieldLabel>
+                <Select
+                  items={LOCK_POLICIES.map((policy) => ({
+                    label: LOCK_POLICY_LABELS[policy],
+                    value: policy,
+                  }))}
+                  value={form.lockPolicy}
+                  onValueChange={(value) =>
+                    value &&
+                    onFormChange((current) => ({
+                      ...current,
+                      lockPolicy: value as LockPolicy,
+                    }))
+                  }
+                >
+                  <SelectTrigger id="atom-lock-policy" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      {LOCK_POLICIES.map((policy) => (
+                        <SelectItem key={policy} value={policy}>
+                          {LOCK_POLICY_LABELS[policy]}｜{LOCK_POLICY_DESCRIPTIONS[policy]}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </Field>
+            </div>
             <ImageField id="atom-image" label="預覽圖" value={form.previewImagePath} onChange={(value) => onFormChange((current) => ({ ...current, previewImagePath: value }))} onUpload={onUpload} />
             <TextareaField id="atom-prompt" label="Prompt 正文" value={form.prompt} onChange={(value) => onFormChange((current) => ({ ...current, prompt: value }))} required mono />
             <TextareaField id="atom-negative" label="Negative Prompt" value={form.negativePrompt} onChange={(value) => onFormChange((current) => ({ ...current, negativePrompt: value }))} mono />
@@ -1603,14 +1869,70 @@ function ConfirmParsedDialog({
                     <div className="grid gap-3 md:grid-cols-2">
                       <Field>
                         <FieldLabel>分類</FieldLabel>
-                        <Select items={CATEGORIES.map((category) => ({ label: category, value: category }))} value={draft.category} onValueChange={(value) => value && onDraftChange(draft.localId, { category: value as Category })}>
-                          <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
-                          <SelectContent><SelectGroup>{CATEGORIES.map((category) => <SelectItem key={category} value={category}>{category}</SelectItem>)}</SelectGroup></SelectContent>
-                        </Select>
+                        <CategoryPicker
+                          value={draft.category}
+                          onChange={(category) => onDraftChange(draft.localId, { category })}
+                        />
                       </Field>
                       <Field><FieldLabel>標題</FieldLabel><Input value={draft.title} onChange={(event) => onDraftChange(draft.localId, { title: event.target.value })} /></Field>
                     </div>
                     <Field><FieldLabel>副標題</FieldLabel><Input value={draft.subtitle} onChange={(event) => onDraftChange(draft.localId, { subtitle: event.target.value })} /></Field>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <Field>
+                        <FieldLabel>Prompt 強度</FieldLabel>
+                        <Select
+                          items={PROMPT_PRIORITIES.map((priority) => ({
+                            label: PROMPT_PRIORITY_LABELS[priority],
+                            value: priority,
+                          }))}
+                          value={draft.priority}
+                          onValueChange={(value) =>
+                            value &&
+                            onDraftChange(draft.localId, {
+                              priority: value as PromptPriority,
+                            })
+                          }
+                        >
+                          <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectGroup>
+                              {PROMPT_PRIORITIES.map((priority) => (
+                                <SelectItem key={priority} value={priority}>
+                                  {PROMPT_PRIORITY_LABELS[priority]}
+                                </SelectItem>
+                              ))}
+                            </SelectGroup>
+                          </SelectContent>
+                        </Select>
+                      </Field>
+                      <Field>
+                        <FieldLabel>覆蓋策略</FieldLabel>
+                        <Select
+                          items={LOCK_POLICIES.map((policy) => ({
+                            label: LOCK_POLICY_LABELS[policy],
+                            value: policy,
+                          }))}
+                          value={draft.lockPolicy}
+                          onValueChange={(value) =>
+                            value &&
+                            onDraftChange(draft.localId, {
+                              lockPolicy: value as LockPolicy,
+                            })
+                          }
+                        >
+                          <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectGroup>
+                              {LOCK_POLICIES.map((policy) => (
+                                <SelectItem key={policy} value={policy}>
+                                  {LOCK_POLICY_LABELS[policy]}
+                                </SelectItem>
+                              ))}
+                            </SelectGroup>
+                          </SelectContent>
+                        </Select>
+                      </Field>
+                    </div>
                     <TextareaField label="Prompt 正文" value={draft.prompt} onChange={(value) => onDraftChange(draft.localId, { prompt: value })} mono />
                     <TextareaField label="Negative Prompt" value={draft.negativePrompt} onChange={(value) => onDraftChange(draft.localId, { negativePrompt: value })} mono />
                     <Field><FieldLabel>標籤</FieldLabel><Input value={draft.tagsText} onChange={(event) => onDraftChange(draft.localId, { tagsText: event.target.value })} /></Field>

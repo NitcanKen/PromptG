@@ -2,12 +2,18 @@ import { z } from "zod";
 
 import {
   CATEGORIES,
+  DEFAULT_LOCK_POLICY,
+  DEFAULT_PROMPT_PRIORITY,
+  LOCK_POLICIES,
+  PROMPT_PRIORITIES,
   QUALITY_PRESETS,
   SIZE_PRESETS,
   type Category,
 } from "@/lib/constants";
 
 export const categorySchema = z.enum(CATEGORIES);
+export const promptPrioritySchema = z.enum(PROMPT_PRIORITIES);
+export const lockPolicySchema = z.enum(LOCK_POLICIES);
 export const sizePresetSchema = z.enum(SIZE_PRESETS.map((preset) => preset.id));
 export const qualityPresetSchema = z.enum(QUALITY_PRESETS.map((preset) => preset.id));
 
@@ -19,6 +25,8 @@ export const selectedAtomSchema = z.object({
   previewImagePath: z.string().default(""),
   prompt: z.string().min(1),
   negativePrompt: z.string().default(""),
+  priority: promptPrioritySchema.default(DEFAULT_PROMPT_PRIORITY),
+  lockPolicy: lockPolicySchema.default(DEFAULT_LOCK_POLICY),
   tags: z.array(z.string()).default([]),
   notes: z.string().default(""),
 });

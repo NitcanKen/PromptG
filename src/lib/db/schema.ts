@@ -8,6 +8,8 @@ export const promptAtoms = sqliteTable("prompt_atoms", {
   previewImagePath: text("preview_image_path").notNull().default(""),
   prompt: text("prompt").notNull(),
   negativePrompt: text("negative_prompt").notNull().default(""),
+  priority: text("priority").notNull().default("medium"),
+  lockPolicy: text("lock_policy").notNull().default("normal"),
   tagsJson: text("tags_json").notNull().default("[]"),
   notes: text("notes").notNull().default(""),
   createdAt: text("created_at").notNull(),

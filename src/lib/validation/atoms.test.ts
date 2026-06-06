@@ -17,8 +17,25 @@ describe("atomInputSchema", () => {
       previewImagePath: "",
       prompt: "soft portrait base",
       negativePrompt: "",
+      priority: "medium",
+      lockPolicy: "normal",
       tags: [],
       notes: "",
+    });
+  });
+
+  it("accepts priority and lock policy metadata", () => {
+    expect(
+      atomInputSchema.parse({
+        category: "人設",
+        title: "核心人像",
+        prompt: "core portrait",
+        priority: "core",
+        lockPolicy: "cannot_override",
+      }),
+    ).toMatchObject({
+      priority: "core",
+      lockPolicy: "cannot_override",
     });
   });
 
@@ -38,6 +55,12 @@ describe("atomUpdateSchema", () => {
   it("does not inject create defaults into partial updates", () => {
     expect(atomUpdateSchema.parse({ title: "更新標題" })).toEqual({
       title: "更新標題",
+    });
+  });
+
+  it("accepts partial priority metadata updates", () => {
+    expect(atomUpdateSchema.parse({ priority: "weak" })).toEqual({
+      priority: "weak",
     });
   });
 });

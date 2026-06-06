@@ -33,12 +33,27 @@ function bootstrap(sqlite: Database.Database) {
       preview_image_path TEXT NOT NULL DEFAULT '',
       prompt TEXT NOT NULL,
       negative_prompt TEXT NOT NULL DEFAULT '',
+      priority TEXT NOT NULL DEFAULT 'medium',
+      lock_policy TEXT NOT NULL DEFAULT 'normal',
       tags_json TEXT NOT NULL DEFAULT '[]',
       notes TEXT NOT NULL DEFAULT '',
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     )
   `);
+
+  const promptAtomColumns = sqlite
+    .prepare("PRAGMA table_info(prompt_atoms)")
+    .all() as Array<{ name: string }>;
+  const promptAtomColumnNames = new Set(promptAtomColumns.map((column) => column.name));
+
+  if (!promptAtomColumnNames.has("priority")) {
+    sqlite.exec("ALTER TABLE prompt_atoms ADD COLUMN priority TEXT NOT NULL DEFAULT 'medium'");
+  }
+
+  if (!promptAtomColumnNames.has("lock_policy")) {
+    sqlite.exec("ALTER TABLE prompt_atoms ADD COLUMN lock_policy TEXT NOT NULL DEFAULT 'normal'");
+  }
 
   db.run(sql`
     CREATE TABLE IF NOT EXISTS gallery_items (

@@ -1,6 +1,10 @@
 import { z } from "zod";
 
-import { categorySchema } from "@/lib/validation/shared";
+import {
+  categorySchema,
+  lockPolicySchema,
+  promptPrioritySchema,
+} from "@/lib/validation/shared";
 
 const atomBaseSchema = z.object({
   category: categorySchema,
@@ -9,6 +13,8 @@ const atomBaseSchema = z.object({
   previewImagePath: z.string().trim().max(500),
   prompt: z.string().trim().min(1, "請輸入 Prompt 正文"),
   negativePrompt: z.string().trim().max(4000),
+  priority: promptPrioritySchema,
+  lockPolicy: lockPolicySchema,
   tags: z.array(z.string().trim().min(1).max(24)).max(12),
   notes: z.string().trim().max(4000),
 });
@@ -17,6 +23,8 @@ export const atomInputSchema = atomBaseSchema.extend({
   subtitle: atomBaseSchema.shape.subtitle.default(""),
   previewImagePath: atomBaseSchema.shape.previewImagePath.default(""),
   negativePrompt: atomBaseSchema.shape.negativePrompt.default(""),
+  priority: atomBaseSchema.shape.priority.default("medium"),
+  lockPolicy: atomBaseSchema.shape.lockPolicy.default("normal"),
   tags: atomBaseSchema.shape.tags.default([]),
   notes: atomBaseSchema.shape.notes.default(""),
 });

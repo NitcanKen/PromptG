@@ -32,6 +32,29 @@ describe("prompt parse validation", () => {
     expect(parsed.items[0].category).toBe("光影");
   });
 
+  it("accepts v2 parser categories including Negative Atom but still rejects unknown labels", () => {
+    const parsed = parsedPromptOutputSchema.parse({
+      items: [
+        {
+          category: "髮型",
+          title: "空氣瀏海",
+          subtitle: "輕盈柔軟的瀏海輪廓",
+          prompt: "airy bangs, soft hair silhouette",
+          tags: ["髮型"],
+        },
+        {
+          category: "Negative Atom",
+          title: "不要錯誤手指",
+          subtitle: "排除手部結構錯誤",
+          prompt: "extra fingers, malformed hands, fused fingers",
+          tags: ["負面"],
+        },
+      ],
+    });
+
+    expect(parsed.items.map((item) => item.category)).toEqual(["髮型", "Negative Atom"]);
+  });
+
   it("rejects unknown categories and overlong tags", () => {
     expect(() =>
       parsedPromptOutputSchema.parse({

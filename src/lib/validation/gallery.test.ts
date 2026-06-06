@@ -36,6 +36,12 @@ describe("gallery validation", () => {
     expect(parsed.combinationSnapshot?.selectedAtoms["人設"]?.[0]?.title).toBe(
       "柔和人像",
     );
+    expect(parsed.combinationSnapshot?.selectedAtoms["人設"]?.[0]?.priority).toBe(
+      "medium",
+    );
+    expect(parsed.combinationSnapshot?.selectedAtoms["人設"]?.[0]?.lockPolicy).toBe(
+      "normal",
+    );
   });
 
   it("keeps update payloads partial", () => {

@@ -6,9 +6,13 @@ import { createStore, type StoreApi } from "zustand/vanilla";
 
 import {
   CATEGORY_SELECTION_MODE,
+  DEFAULT_LOCK_POLICY,
+  DEFAULT_PROMPT_PRIORITY,
   DEFAULT_QUALITY_PRESET,
   DEFAULT_SIZE_PRESET,
   type Category,
+  type LockPolicy,
+  type PromptPriority,
   type QualityPresetId,
   type SizePresetId,
 } from "@/lib/constants";
@@ -23,6 +27,8 @@ export type SelectedAtom = {
   previewImagePath: string;
   prompt: string;
   negativePrompt: string;
+  priority: PromptPriority;
+  lockPolicy: LockPolicy;
   tags: string[];
   notes: string;
 };
@@ -63,6 +69,32 @@ const initialState = {
   compilerMode: "auto" as CompilerMode,
   customPrompt: "",
 };
+
+function normalizeSelectedAtom(atom: SelectedAtom): SelectedAtom {
+  return {
+    ...atom,
+    priority: atom.priority ?? DEFAULT_PROMPT_PRIORITY,
+    lockPolicy: atom.lockPolicy ?? DEFAULT_LOCK_POLICY,
+  };
+}
+
+function normalizeSelectedAtoms(
+  selectedAtoms: Partial<Record<Category, SelectedAtom[]>>,
+) {
+  return Object.fromEntries(
+    Object.entries(selectedAtoms).map(([category, atoms]) => [
+      category,
+      atoms?.map((atom) => normalizeSelectedAtom(atom)) ?? [],
+    ]),
+  ) as Partial<Record<Category, SelectedAtom[]>>;
+}
+
+function normalizeSnapshot(snapshot: CurrentCombinationSnapshot): CurrentCombinationSnapshot {
+  return {
+    ...snapshot,
+    selectedAtoms: normalizeSelectedAtoms(snapshot.selectedAtoms),
+  };
+}
 
 const currentCombinationStateCreator: StateCreator<CurrentCombinationState> = (set) => ({
   ...initialState,
@@ -107,7 +139,7 @@ const currentCombinationStateCreator: StateCreator<CurrentCombinationState> = (s
     })),
   applySnapshot: (snapshot) =>
     set({
-      selectedAtoms: snapshot.selectedAtoms,
+      selectedAtoms: normalizeSnapshot(snapshot).selectedAtoms,
       sizePreset: snapshot.sizePreset,
       qualityPreset: snapshot.qualityPreset,
       compilerMode: "auto",
@@ -117,7 +149,7 @@ const currentCombinationStateCreator: StateCreator<CurrentCombinationState> = (s
     set(
       item.combinationSnapshot
         ? {
-            selectedAtoms: item.combinationSnapshot.selectedAtoms,
+            selectedAtoms: normalizeSnapshot(item.combinationSnapshot).selectedAtoms,
             sizePreset: item.combinationSnapshot.sizePreset,
             qualityPreset: item.combinationSnapshot.qualityPreset,
             compilerMode: "auto",

@@ -2,9 +2,10 @@ import { eq } from "drizzle-orm";
 
 import { getDb } from "@/lib/db/client";
 import { appSettings, promptAtoms } from "@/lib/db/schema";
+import { DEFAULT_LOCK_POLICY, DEFAULT_PROMPT_PRIORITY } from "@/lib/constants";
 import { SEED_ATOMS } from "@/lib/seed/seed-atoms";
 
-const seedSettingKey = "seed_atoms_bootstrapped_v1";
+const seedSettingKey = "seed_atoms_bootstrapped_v2";
 
 export async function ensureSeedAtoms() {
   const db = getDb();
@@ -13,10 +14,6 @@ export async function ensureSeedAtoms() {
     .from(appSettings)
     .where(eq(appSettings.key, seedSettingKey))
     .get();
-
-  if (bootstrapped) {
-    return;
-  }
 
   const now = new Date().toISOString();
 
@@ -39,6 +36,8 @@ export async function ensureSeedAtoms() {
       previewImagePath: seed.previewImagePath,
       prompt: seed.prompt,
       negativePrompt: seed.negativePrompt,
+      priority: seed.priority ?? DEFAULT_PROMPT_PRIORITY,
+      lockPolicy: seed.lockPolicy ?? DEFAULT_LOCK_POLICY,
       tagsJson: JSON.stringify(seed.tags),
       notes: seed.notes,
       createdAt: now,
@@ -46,12 +45,25 @@ export async function ensureSeedAtoms() {
     });
   }
 
+  const valueJson = JSON.stringify({
+    insertedAt: now,
+    count: SEED_ATOMS.length,
+  });
+
+  if (bootstrapped) {
+    await db
+      .update(appSettings)
+      .set({
+        valueJson,
+        updatedAt: now,
+      })
+      .where(eq(appSettings.key, seedSettingKey));
+    return;
+  }
+
   await db.insert(appSettings).values({
     key: seedSettingKey,
-    valueJson: JSON.stringify({
-      insertedAt: now,
-      count: SEED_ATOMS.length,
-    }),
+    valueJson,
     updatedAt: now,
   });
 }
