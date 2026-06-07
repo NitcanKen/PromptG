@@ -19,7 +19,7 @@ afterEach(async () => {
 });
 
 describe("/api/uploads/atom-previews/[filename]", () => {
-  it("serves an existing generated atom preview with immutable cache headers", async () => {
+  it("serves an existing generated atom preview without sticky immutable cache headers", async () => {
     await fs.mkdir(previewDir, { recursive: true });
     await fs.writeFile(testPath, Buffer.from([0x89, 0x50, 0x4e, 0x47]));
 
@@ -27,7 +27,7 @@ describe("/api/uploads/atom-previews/[filename]", () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get("Content-Type")).toBe("image/png");
-    expect(response.headers.get("Cache-Control")).toBe("public, max-age=31536000, immutable");
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
     await expect(response.arrayBuffer()).resolves.toHaveProperty("byteLength", 4);
   });
 

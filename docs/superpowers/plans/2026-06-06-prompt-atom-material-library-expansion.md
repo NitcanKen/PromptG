@@ -310,13 +310,20 @@ P4 status:
 3. `ensureExpandedAtoms()` inserts missing app-owned expanded atoms by stable ID and does not delete or overwrite existing seed/user-created atoms.
 4. Generated preview image backfill now reads the production manifest and uses generated `/api/uploads/atom-previews/<atom-id>.png` paths when importing expanded atoms.
 5. P4C generated and validated the first production `髮型` 40 preview slice, then verified DB/app availability through the app-owned bootstrap path.
-6. `data/app.db` remains an output of app/bootstrap code and was not manually edited as the canonical source.
+6. P4D completed the main scope on 2026-06-07: 31 categories / 730 unique main atoms are available through app-owned structured source and mirrored shard docs.
+7. P4D generated/validated 730 local main-scope preview PNGs; manifest `data/uploads/atom-previews/manifest.json` contains 690 `generated` and 40 `skipped_existing` entries.
+8. P4D app bootstrap/import was verified through `listAtoms()`: DB total 735, main-scope total 730, duplicate IDs 0, missing preview files 0, and seed text changes 0.
+9. P4D browser QA passed at desktop and 390x844 mobile: category counts loaded, visible preview images decoded at 1024x1024, Negative Atom remained separated in the compiler, and no mobile horizontal overflow was found.
+10. `data/app.db` remains an output of app/bootstrap code and was not manually edited as the canonical source.
 
 Remaining P4 work:
 
 1. P4B: complete for Gemini batch generator proof-of-concept, dry-run, scoped generation, REST provider contract, manifest/resume basics, atom-preview serving route, and secret-safe logging.
 2. P4C: complete for generated hair 40 images, manifest-backed preview backfill, DB/app import, route validation, and desktop/mobile browser QA with loaded previews.
-3. P4D: remaining work is to expand approved shards toward the 730 main / 840 full v2 targets and run category-by-category production validation.
+3. P4D: complete for the original main 31 categories / 730 unique atoms, including structured source, shard docs, Gemini preview generation, manifest validation, app-owned DB import, and desktop/mobile browser QA.
+4. 2026-06-07 persona add-on: `人設` expanded from 30 to 80 with 50 new `library-persona-addon-*` atoms based on the pasted brief; current main scope is 31 categories / 780 atoms and DB total is 785.
+5. Persona add-on previews were generated with Gemini for a 20-year-old cute Japanese adult non-celebrity visual direction; validation checked 780 main previews and passed.
+6. Remaining P4 work: optional full v2 add-on for `材質`, `真實性 / 缺陷控制`, `Negative Atom`, `尺寸`, and `質量`; with persona add-on included, full v2 completion target becomes 890 atoms.
 
 ## 10. Production Image Integration
 

@@ -110,15 +110,17 @@ The 840-image full v2 target should fit under the daily request limit if most im
 
 Default image style:
 
-1. Eastern aesthetic by default.
-2. Adult, non-celebrity, non-branded, non-IP generic subjects.
-3. Clean but natural photographic reference image.
-4. Soft contemporary East Asian styling, unless the atom explicitly describes Western, European, American, non-Eastern, or non-human content.
-5. No visible brand logos.
-6. No text unless the atom category is explicitly `文本元素`, `版式設計`, or `平台媒介`.
-7. No celebrity likeness.
-8. No sexualized minor-coded subject.
-9. Avoid turning every image into the same person, outfit, pose, or bedroom selfie.
+1. `2.5D 半寫實動漫角色卡 / 寫實系 ACG 人設肖像 / 真人感二次元角色攝影` by default.
+2. Eastern ACG beauty aesthetic by default.
+3. Adult, non-celebrity, non-branded, non-IP generic ACG subjects.
+4. Polished character-card composition with expressive but believable anime-realism.
+5. No bland live-action street photography, stock-photo realism, passport-photo lighting, ordinary commuter portraits, or anonymous passerby energy.
+6. Follow Western, European, American, non-Eastern, or non-human atom content only when the atom explicitly requires it, while keeping the 2.5D semi-realistic ACG rendering style.
+7. No visible brand logos.
+8. No text unless the atom category is explicitly `文本元素`, `版式設計`, or `平台媒介`.
+9. No celebrity likeness.
+10. No sexualized minor-coded subject.
+11. Avoid turning every image into the same person, outfit, pose, or background.
 
 Base prompt wrapper:
 
@@ -130,17 +132,20 @@ Title: <title>
 Description: <subtitle>
 Prompt fragment: <prompt>
 
-Use an Eastern aesthetic by default: contemporary East Asian photography, natural styling, refined everyday visual taste.
-If the atom explicitly describes Western, European, American, non-Eastern, or non-human content, follow the atom instead.
+Core visual style: 2.5D semi-realistic anime character card, realistic ACG character portrait, live-action-feeling anime character photography.
+Use an Eastern ACG beauty aesthetic by default: refined East Asian anime-realism, polished character-card composition, expressive but believable face rendering, attractive stylized lighting, collectible character portrait quality.
+If the atom explicitly describes Western, European, American, non-Eastern, or non-human content, follow the atom instead while keeping the 2.5D semi-realistic ACG rendering style.
 Keep the image focused on this atom only. Do not overbuild a full scene unless the category is a scene, platform, layout, or post-processing category.
-Use a generic adult subject when a person is needed.
+Use a generic adult ACG character when a person is needed.
 No celebrity likeness, no brand logo, no copyrighted character, no extra text, no watermark-like text.
+Avoid ordinary live-action street photography, stock photo realism, passport-photo lighting, bland commuter portraits, and anonymous passerby energy.
+Make the concept visually heightened enough that the atom is recognizable from a small card thumbnail.
 Clean composition, visually readable at small card size.
 ```
 
 Category-specific prompt additions:
 
-1. `髮型`: close portrait or upper-body crop focused on hair shape. Keep outfit and background neutral.
+1. `髮型`: close ACG portrait or upper-body character crop focused on hair shape. Keep outfit and background secondary, but maintain polished character-card appeal.
 2. `上裝`, `下裝`, `鞋履`: fashion catalog or lifestyle crop focused on the garment item.
 3. `配飾`, `道具`: object or partial-person composition focused on the accessory/prop.
 4. `場景`, `場景細節`: location/detail-first frame; use a person only if useful for scale.
@@ -393,7 +398,31 @@ Browser QA:
 - [x] P4C generated preview manifest/import wired into the expanded atom backfill path.
 - [x] P4C generated 40 local `髮型` preview PNGs under `data/uploads/atom-previews/` and validated manifest/files.
 - [x] P4C app verified with generated previews at desktop and 390px mobile viewport.
-- [ ] Full 730/840 image target completed and verified.
+- [x] P4D main/full target scope contract added with `--all-main` / `--all-v2` dry-run batch selection.
+- [x] P4D main-scope text shards and structured source completed for 31 categories / 730 unique main atoms.
+- [x] P4D main-scope preview generation completed on 2026-06-07: `npm run generate:atom-previews -- --all-main --concurrency 4 --rpm 72` generated 690, skipped 40 existing, failed 0.
+- [x] P4D main-scope preview validation passed on 2026-06-07: `npm run validate:atom-previews -- --all-main` checked 730, manifest `data/uploads/atom-previews/manifest.json`, 730 local PNGs.
+- [x] P4D app-owned bootstrap/import verified on 2026-06-07 through `listAtoms()`: DB total 735, main-scope total 730, duplicate IDs 0, missing preview files 0, seed text changes 0.
+- [x] P4D browser QA passed on 2026-06-07 at desktop and 390x844 mobile: overview counts loaded, `髮型`/`上裝`/`場景` visible previews decoded at 1024x1024, Negative Atom stayed out of the positive Prompt, and no mobile horizontal overflow was found.
+- [x] Main 31-category / 730 image target completed and verified.
+- [x] Persona add-on completed on 2026-06-07: added 50 `人設` atoms (`library-persona-addon-01` through `library-persona-addon-50`) for a 20-year-old cute Japanese adult non-celebrity visual direction.
+- [x] Persona add-on Gemini preview generation completed on 2026-06-07: generated 50, skipped 0, failed 0; `npm run validate:atom-previews -- --all-main` checked 780 and passed.
+- [x] Persona add-on app/bootstrap/browser QA verified DB total 785, `人設` 80, 780 local PNGs, selector sidebar `人設80`, and visible new persona previews decoded at 1024x1024.
+- [ ] User-visible aesthetic QA failed on 2026-06-07: existing generated previews are too close to ordinary live-action portraits and do not satisfy the required `2.5D 半寫實動漫角色卡 / 寫實系 ACG 人設肖像 / 真人感二次元角色攝影` direction.
+- [ ] Regenerate affected previews with `--force` after the ACG/2.5D wrapper and weak atom replacements are complete.
+- [ ] Full v2 36-category / 890 image target completed and verified after persona add-on.
+
+## 16. Quality Correction Added 2026-06-07
+
+User-visible QA found that the generated previews were too close to ordinary live-action East Asian street/profile photography. Examples such as `偶像練習生` looked like generic passersby instead of distinctive character cards.
+
+Correction:
+
+1. Existing generated preview files made with the old `contemporary East Asian photography` wrapper are not final production assets.
+2. Regenerate previews with `--force` after the ACG/2.5D wrapper is implemented.
+3. Material text quality must be judged by distinctiveness, not only count.
+4. Weak templated atoms such as `自然通勤人物`, `編輯通勤人物`, and `清爽通勤人物` are considered failed content and must be replaced with concrete, visually distinguishable atom concepts.
+5. Production readiness cannot be claimed while preview images still look like generic live-action portraits or while large portions of the library are generated from weak `adjective x generic noun` templates.
 
 ## 15. Approval Gate
 
@@ -402,6 +431,6 @@ After this document is reviewed and approved, generate `/goal` prompts in phases
 1. P4A: Contract and source-doc integration. Status: complete in code/docs for `髮型` 40 structured data and app-owned bootstrap contract; no Gemini image generation performed.
 2. P4B: Gemini generator proof-of-concept. Status: complete for dry-run, scoped generation options, REST provider contract, manifest/resume basics, rate limit, retry/backoff, no-secret logging, and atom-preview route; no real Gemini image generation performed.
 3. P4C: App preview route and hair 40 production image slice. Status: complete on 2026-06-06 for generated file validation, manifest-backed preview backfill, all 40 hair preview generation, app bootstrap import, and browser QA with loaded previews.
-4. P4D: Full material library scale-up. Remaining: approved shards for the rest of the 730 main / 840 full v2 targets, batch generation, category validation, and final production readiness.
+4. P4D: Full material library scale-up. Status: main scope complete on 2026-06-07 for 31 categories / 730 unique main atoms, with target-count contract, text shards, structured source, `--all-main` / `--all-v2` batch scopes, 730 local preview PNGs, manifest validation, app-owned DB bootstrap/import, and desktop/mobile browser QA. Remaining: optional full v2 36/840 add-on for `材質`, `真實性 / 缺陷控制`, `Negative Atom`, `尺寸`, and `質量`.
 
 Do not generate final `/goal` prompts before this source-of-truth document is approved.

@@ -8,7 +8,10 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "generate:atom-previews": "tsx scripts/gemini-generate-atom-previews.ts",
+    "export:material-shards": "tsx scripts/export-material-shards.ts",
+    "audit:atom-quality": "tsx scripts/audit-atom-quality.ts",
+    "generate:atom-previews": "tsx scripts/generate-atom-previews.ts",
+    "purge:atom-previews": "tsx scripts/purge-atom-previews.ts",
     "validate:atom-previews": "tsx scripts/validate-atom-previews.ts"
   },
   "dependencies": {

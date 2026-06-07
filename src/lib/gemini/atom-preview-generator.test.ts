@@ -10,6 +10,7 @@ import {
   runAtomPreviewGeneration,
   selectAtomPreviewTargets,
 } from "@/lib/gemini/atom-preview-generator";
+import { getCategoryTargetTotal, MAIN_SCOPE_CATEGORY_TARGETS } from "@/lib/seed/expanded-atom-targets";
 import { EXPANDED_HAIR_ATOMS } from "@/lib/seed/expanded-atoms";
 
 const tempDirs: string[] = [];
@@ -22,8 +23,9 @@ async function makeTempDir() {
 
 afterEach(async () => {
   vi.restoreAllMocks();
-  delete process.env.GEMINI_API_KEY;
-  delete process.env.GOOGLE_API_KEY;
+  delete process.env.ATOM_PREVIEW_API_KEY;
+  delete process.env.ATOM_PREVIEW_BASE_URL;
+  delete process.env.ATOM_PREVIEW_MODEL;
   await Promise.all(tempDirs.splice(0).map((dir) => fs.rm(dir, { recursive: true, force: true })));
 });
 
@@ -39,16 +41,42 @@ describe("atom preview generator", () => {
     expect(targets[0]?.id).toBe("library-hair-curtain-bangs");
   });
 
-  it("builds the production prompt wrapper with the hair-specific instruction", () => {
+  it("builds a provider-agnostic preview prompt with the hair-specific instruction", () => {
     const prompt = buildAtomPreviewPrompt(EXPANDED_HAIR_ATOMS[1]);
 
-    expect(prompt).toContain("Create a square 1:1 reference image");
-    expect(prompt).toContain("Use an Eastern aesthetic by default");
-    expect(prompt).toContain("generic adult subject");
+    expect(prompt).toContain("Create one square 1:1 image that previews a single visual concept");
+    expect(prompt).toContain("Title: 八字瀏海");
+    expect(prompt).toContain("Meaning to preserve: curtain bangs");
+    expect(prompt).toContain("2.5D semi-realistic anime key visual");
+    expect(prompt).toContain("Eastern ACG aesthetic");
+    expect(prompt).toContain("adult original ACG character");
     expect(prompt).toContain("No celebrity likeness");
-    expect(prompt).toContain("No celebrity likeness, no brand logo, no copyrighted character");
-    expect(prompt).toContain("close portrait or upper-body crop focused on hair shape");
-    expect(prompt).toContain(EXPANDED_HAIR_ATOMS[1].prompt);
+    expect(prompt).toContain("hair design portrait");
+    expect(prompt).not.toContain("contemporary East Asian photography");
+    expect(prompt).not.toContain("PromptG");
+    expect(prompt).not.toContain("atom");
+    expect(prompt).not.toContain("library card");
+  });
+
+  it("builds persona add-on preview prompts as distinctive adult ACG character references", () => {
+    const target = selectAtomPreviewTargets({ ids: ["library-persona-addon-01"] })[0];
+    const prompt = buildAtomPreviewPrompt(target);
+
+    expect(prompt).toContain("character design portrait");
+    expect(prompt).toContain("distinctive silhouette");
+    expect(prompt).toContain("clearly adult original ACG character");
+    expect(prompt).toContain("Do not make the subject look underage");
+  });
+
+  it("treats scene prompts as environment concepts instead of forcing generic portraits", () => {
+    const target = selectAtomPreviewTargets({ ids: ["library-scene-01"] })[0];
+    const prompt = buildAtomPreviewPrompt(target);
+
+    expect(prompt).toContain("environment concept image");
+    expect(prompt).toContain("the location must be the main subject");
+    expect(prompt).toContain("People are optional");
+    expect(prompt).not.toContain("PromptG");
+    expect(prompt).not.toContain("atom");
   });
 
   it("parses dry-run CLI scope without requiring an API key", () => {
@@ -60,6 +88,38 @@ describe("atom preview generator", () => {
       ids: ["library-hair-curtain-bangs"],
       limit: 1,
       force: false,
+    });
+  });
+
+  it("parses full-library preview scopes for P4D batch runs", () => {
+    expect(parseAtomPreviewArgs(["--dry-run", "--all-main"])).toMatchObject({
+      dryRun: true,
+      scope: "main",
+    });
+    expect(parseAtomPreviewArgs(["--dry-run", "--all-v2"])).toMatchObject({
+      dryRun: true,
+      scope: "v2",
+    });
+  });
+
+  it("selects all approved main-scope preview targets including existing seed atoms", () => {
+    const targets = selectAtomPreviewTargets({ scope: "main" });
+    const ids = targets.map((atom) => atom.id);
+
+    expect(targets).toHaveLength(getCategoryTargetTotal(MAIN_SCOPE_CATEGORY_TARGETS));
+    expect(new Set(ids).size).toBe(targets.length);
+    expect(ids).toContain("seed-persona-soft-cinematic");
+    expect(ids).toContain("seed-hair-airy-bangs");
+    expect(ids).toContain("library-hair-curtain-bangs");
+  });
+
+  it("normalizes preview targets with atom defaults before prompt generation", () => {
+    const seedTarget = selectAtomPreviewTargets({ ids: ["seed-persona-soft-cinematic"] })[0];
+
+    expect(seedTarget).toMatchObject({
+      id: "seed-persona-soft-cinematic",
+      priority: "medium",
+      lockPolicy: "normal",
     });
   });
 

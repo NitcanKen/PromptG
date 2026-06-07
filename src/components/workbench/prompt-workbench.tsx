@@ -5,6 +5,8 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   CheckIcon,
+  ChevronDownIcon,
+  ChevronUpIcon,
   ClipboardIcon,
   EyeIcon,
   ImagePlusIcon,
@@ -46,6 +48,12 @@ import {
   type QualityPresetId,
   type SizePresetId,
 } from "@/lib/constants";
+import {
+  countAtomsByCategory,
+  countAtomsForCategories,
+  type CategoryAtomCounts,
+} from "@/lib/atoms/category-counts";
+import { getVisibleTags } from "@/lib/atoms/tag-display";
 import { compilePrompt } from "@/lib/prompt/compiler";
 import { cn } from "@/lib/utils";
 import {
@@ -318,6 +326,7 @@ export function PromptWorkbench() {
     (total, items) => total + (items?.length ?? 0),
     0,
   );
+  const categoryAtomCounts = useMemo(() => countAtomsByCategory(atoms), [atoms]);
   const currentSnapshot = useMemo<CurrentCombinationSnapshot | null>(() => {
     if (selectedCount === 0) {
       return null;
@@ -964,7 +973,7 @@ export function PromptWorkbench() {
                           >
                             <span className="min-w-0 truncate">{category}</span>
                             <Badge variant="secondary">
-                              {atoms.filter((atom) => atom.category === category).length}
+                              {categoryAtomCounts[category]}
                             </Badge>
                           </button>
                         ))}
@@ -985,6 +994,7 @@ export function PromptWorkbench() {
         tag={selectorTag}
         tags={selectorTags}
         atoms={selectorAtoms}
+        categoryAtomCounts={categoryAtomCounts}
         selectedAtoms={selectedAtoms}
         isLoading={isLoadingAtoms}
         onOpenChange={setIsSelectorOpen}
@@ -1180,6 +1190,7 @@ function BigSelectorDialog({
   tag,
   tags,
   atoms,
+  categoryAtomCounts,
   selectedAtoms,
   isLoading,
   onOpenChange,
@@ -1203,6 +1214,7 @@ function BigSelectorDialog({
   tag: string;
   tags: string[];
   atoms: PromptAtom[];
+  categoryAtomCounts: CategoryAtomCounts;
   selectedAtoms: Partial<Record<Category, SelectedAtom[]>>;
   isLoading: boolean;
   onOpenChange: (open: boolean) => void;
@@ -1224,6 +1236,10 @@ function BigSelectorDialog({
   const selectedCount = Object.values(selectedAtoms).reduce((total, items) => total + (items?.length ?? 0), 0);
   const activeGroup = categoryGroupOf(activeCategory);
   const isGlobalSearch = search.trim().length > 0;
+  const tagScopeKey = `${activeCategory}:${search.trim()}`;
+  const [tagExpansion, setTagExpansion] = useState({ scopeKey: tagScopeKey, expanded: false });
+  const tagsExpanded = tagExpansion.scopeKey === tagScopeKey && tagExpansion.expanded;
+  const { visibleTags, hiddenCount, canToggle } = getVisibleTags(tags, tagsExpanded);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -1241,10 +1257,7 @@ function BigSelectorDialog({
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-xs font-medium text-muted-foreground">{group}</span>
                       <Badge variant={activeGroup === group ? "default" : "secondary"}>
-                        {categoriesInGroup(group).reduce(
-                          (total, category) => total + (selectedAtoms[category]?.length ?? 0),
-                          0,
-                        )}
+                        {countAtomsForCategories(categoryAtomCounts, categoriesInGroup(group))}
                       </Badge>
                     </div>
                     <div className="grid gap-1">
@@ -1259,7 +1272,7 @@ function BigSelectorDialog({
                           )}
                         >
                           <span className="min-w-0 truncate">{category}</span>
-                          <Badge variant="secondary">{selectedAtoms[category]?.length ?? 0}</Badge>
+                          <Badge variant="secondary">{categoryAtomCounts[category]}</Badge>
                         </button>
                       ))}
                     </div>
@@ -1290,11 +1303,26 @@ function BigSelectorDialog({
                 {isGlobalSearch ? "全部分類搜尋" : `${activeGroup} / ${activeCategory}`}
               </Badge>
               <Button variant={tag ? "outline" : "secondary"} size="sm" onClick={() => onTagChange("")}>全部標籤</Button>
-              {tags.map((item) => (
+              {visibleTags.map((item) => (
                 <Button key={item} variant={tag === item ? "default" : "outline"} size="sm" onClick={() => onTagChange(item)}>
                   {item}
                 </Button>
               ))}
+              {canToggle && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setTagExpansion((current) => ({
+                    scopeKey: tagScopeKey,
+                    expanded: current.scopeKey === tagScopeKey ? !current.expanded : true,
+                  }))}
+                  aria-expanded={tagsExpanded}
+                  aria-label={tagsExpanded ? "收合標籤" : `展開另外 ${hiddenCount} 個標籤`}
+                >
+                  {tagsExpanded ? <ChevronUpIcon data-icon="inline-start" /> : <ChevronDownIcon data-icon="inline-start" />}
+                  {tagsExpanded ? "收合標籤" : `展開 ${hiddenCount}`}
+                </Button>
+              )}
             </div>
             <div className="min-h-[420px] overflow-visible lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-1">
               {isLoading ? (

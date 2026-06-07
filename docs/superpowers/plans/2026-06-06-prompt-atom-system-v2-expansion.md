@@ -662,9 +662,16 @@ After reviewing this document, split implementation into separate goals:
 
 ## 21. P4 Material Library Follow-Up Status
 
-Status on 2026-06-06: P4A-P4C are complete for the first production `髮型` 40 slice.
+Status on 2026-06-07: P4A-P4D are complete through the main 31-category / 730-atom production scope.
 
 1. P4A added structured app-owned expanded hair atoms in `src/lib/seed/expanded-atoms.ts`.
 2. P4B added the Gemini batch preview generator, manifest/resume contract, secret-safe env lookup, and `/api/uploads/atom-previews/[filename]`.
 3. P4C generated 40 local hair preview PNGs, validated the manifest/files, wired manifest-backed preview paths into `ensureExpandedAtoms()`, and verified DB/app/browser availability.
-4. P4D remains open for expanding the remaining approved material-library shards toward the 730 main / 840 full v2 targets.
+4. P4D started on 2026-06-07 with target-count contracts for main 31/730 and full v2 36/840 plus generator dry-run scopes.
+5. P4D main-scope text/source is complete for 31 categories / 730 unique main atoms, mirrored into shard docs and app-owned structured data.
+6. P4D generated and validated 730 local main-scope preview PNGs: manifest `data/uploads/atom-previews/manifest.json`, 690 `generated`, 40 `skipped_existing`, 0 failed.
+7. P4D app-owned bootstrap/import was verified through `listAtoms()`: DB total 735, main-scope total 730, duplicate IDs 0, missing preview files 0, seed text changes 0.
+8. P4D desktop/mobile browser QA passed: category overview counts loaded, visible previews decoded at 1024x1024, Negative Atom stayed separate from the positive Prompt, and 390x844 mobile had no horizontal overflow.
+9. 2026-06-07 persona add-on expanded `人設` from 30 to 80 with 50 new `library-persona-addon-*` atoms and Gemini previews for a 20-year-old cute Japanese adult non-celebrity visual direction.
+10. Persona add-on validation checked 780 main previews; DB total is 785, `人設` is 80, and browser QA verified selector sidebar `人設80` plus visible 1024x1024 new previews.
+11. Remaining work: optional full v2 add-on for `材質`, `真實性 / 缺陷控制`, `Negative Atom`, `尺寸`, and `質量`; with persona add-on included, full v2 completion target is 36/890.

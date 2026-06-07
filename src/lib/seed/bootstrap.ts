@@ -20,6 +20,9 @@ const defaultGeneratedManifestPath = path.join(
   "atom-previews",
   "manifest.json",
 );
+const seedPreviewRoutePrefix = "/api/uploads/seed/";
+const weakPersonaTitlePattern =
+  /^(自然|編輯|清爽|清冷)(通勤|鄰家|模特|旅行|創作者|學生|地下偶像|咖啡店店員)人物$/;
 
 type EnsureExpandedAtomsOptions = {
   previewPathsByAtomId?: Record<string, string>;
@@ -100,6 +103,48 @@ function getGeneratedPreviewPath(
   return previewPathExists(previewImagePath) ? previewImagePath : "";
 }
 
+function canBackfillGeneratedPreview(
+  atomId: string,
+  currentPreviewImagePath: string,
+  generatedPreviewPath: string,
+) {
+  return (
+    generatedPreviewPath &&
+    generatedPreviewPath !== currentPreviewImagePath &&
+    (currentPreviewImagePath === "" ||
+      currentPreviewImagePath.startsWith(seedPreviewRoutePrefix) ||
+      isGeneratedAtomPreviewPath(atomId, currentPreviewImagePath))
+  );
+}
+
+function isOldWeakTemplatedPersona(row: {
+  id: string;
+  category: string;
+  title: string;
+  prompt: string;
+}) {
+  return (
+    row.id.startsWith("library-persona-") &&
+    row.category === "人設" &&
+    (weakPersonaTitlePattern.test(row.title) ||
+      row.prompt.includes("reusable character archetype"))
+  );
+}
+
+function isOldPersonaAddonBoilerplate(row: {
+  id: string;
+  category: string;
+  prompt: string;
+  notes: string;
+}) {
+  return (
+    row.id.startsWith("library-persona-addon-") &&
+    row.category === "人設" &&
+    (row.prompt.includes("20-year-old cute Japanese young woman") ||
+      row.notes.includes("20 歲日本可愛少女"))
+  );
+}
+
 export async function ensureSeedAtoms() {
   const db = getDb();
   const bootstrapped = await db
@@ -172,12 +217,43 @@ export async function ensureExpandedAtoms(options: EnsureExpandedAtomsOptions = 
   const now = new Date().toISOString();
   let inserted = 0;
   let previewBackfilled = 0;
+  let metadataBackfilled = 0;
   const previewPathsByAtomId = {
     ...(await loadGeneratedPreviewPathsFromManifest(
       options.generatedManifestPath ?? defaultGeneratedManifestPath,
     )),
     ...(options.previewPathsByAtomId ?? {}),
   };
+
+  for (const seed of SEED_ATOMS) {
+    const generatedPreviewPath = getGeneratedPreviewPath(seed.id, previewPathsByAtomId, options);
+    if (!generatedPreviewPath) {
+      continue;
+    }
+
+    const existing = await db
+      .select({
+        id: promptAtoms.id,
+        previewImagePath: promptAtoms.previewImagePath,
+      })
+      .from(promptAtoms)
+      .where(eq(promptAtoms.id, seed.id))
+      .get();
+
+    if (
+      existing &&
+      canBackfillGeneratedPreview(seed.id, existing.previewImagePath, generatedPreviewPath)
+    ) {
+      await db
+        .update(promptAtoms)
+        .set({
+          previewImagePath: generatedPreviewPath,
+          updatedAt: now,
+        })
+        .where(eq(promptAtoms.id, seed.id));
+      previewBackfilled += 1;
+    }
+  }
 
   for (const atom of EXPANDED_ATOMS) {
     const generatedPreviewPath = getGeneratedPreviewPath(atom.id, previewPathsByAtomId, options);
@@ -207,13 +283,39 @@ export async function ensureExpandedAtoms(options: EnsureExpandedAtomsOptions = 
       continue;
     }
 
-    const canBackfillPreview =
-      generatedPreviewPath &&
-      generatedPreviewPath !== existing.previewImagePath &&
-      (existing.previewImagePath === "" ||
-        isGeneratedAtomPreviewPath(existing.id, existing.previewImagePath));
+    if (isOldWeakTemplatedPersona(existing) || isOldPersonaAddonBoilerplate(existing)) {
+      await db
+        .update(promptAtoms)
+        .set({
+          category: atom.category,
+          title: atom.title,
+          subtitle: atom.subtitle,
+          previewImagePath: canBackfillGeneratedPreview(
+            existing.id,
+            existing.previewImagePath,
+            generatedPreviewPath,
+          )
+            ? generatedPreviewPath
+            : existing.previewImagePath,
+          prompt: atom.prompt,
+          negativePrompt: atom.negativePrompt,
+          priority: atom.priority ?? DEFAULT_PROMPT_PRIORITY,
+          lockPolicy: atom.lockPolicy ?? DEFAULT_LOCK_POLICY,
+          tagsJson: JSON.stringify(atom.tags),
+          notes: atom.notes,
+          updatedAt: now,
+        })
+        .where(eq(promptAtoms.id, atom.id));
+      metadataBackfilled += 1;
+      if (
+        canBackfillGeneratedPreview(existing.id, existing.previewImagePath, generatedPreviewPath)
+      ) {
+        previewBackfilled += 1;
+      }
+      continue;
+    }
 
-    if (canBackfillPreview) {
+    if (canBackfillGeneratedPreview(existing.id, existing.previewImagePath, generatedPreviewPath)) {
       await db
         .update(promptAtoms)
         .set({
@@ -230,6 +332,7 @@ export async function ensureExpandedAtoms(options: EnsureExpandedAtomsOptions = 
     sourceCount: EXPANDED_ATOMS.length,
     inserted,
     previewBackfilled,
+    metadataBackfilled,
   });
 
   if (bootstrapped) {

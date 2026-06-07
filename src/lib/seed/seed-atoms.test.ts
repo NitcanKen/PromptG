@@ -1,7 +1,4 @@
 import { describe, expect, it } from "vitest";
-import fs from "node:fs";
-import path from "node:path";
-
 import { CATEGORIES } from "@/lib/constants";
 import { SEED_ATOMS } from "@/lib/seed/seed-atoms";
 
@@ -13,14 +10,13 @@ describe("seed atoms", () => {
   it("includes at least 36 local seed atoms covering every v2 category", () => {
     expect(SEED_ATOMS.length).toBeGreaterThanOrEqual(36);
     expect(new Set(SEED_ATOMS.map((atom) => atom.category))).toEqual(new Set(CATEGORIES));
-    expect(SEED_ATOMS.every((atom) => atom.previewImagePath.startsWith("/api/uploads/seed/"))).toBe(true);
+    expect(SEED_ATOMS.every((atom) => atom.previewImagePath === "")).toBe(true);
   });
 
-  it("only references preview files that exist in the local seed upload directory", () => {
-    for (const atom of SEED_ATOMS) {
-      const fileName = atom.previewImagePath.replace("/api/uploads/seed/", "");
-      expect(fs.existsSync(path.join(process.cwd(), "data/uploads/seed", fileName))).toBe(true);
-    }
+  it("does not reference removed local seed preview files", () => {
+    expect(SEED_ATOMS.some((atom) => atom.previewImagePath.startsWith("/api/uploads/seed/"))).toBe(
+      false,
+    );
   });
 
   it("keeps visible seed metadata in Traditional Chinese", () => {

@@ -33,7 +33,7 @@ export async function GET(_request: Request, context: RouteContext) {
   return new NextResponse(data, {
     headers: {
       "Content-Type": mimeByExtension[path.extname(filename).toLowerCase()] ?? "image/png",
-      "Cache-Control": "public, max-age=31536000, immutable",
+      "Cache-Control": "no-store",
     },
   });
 }

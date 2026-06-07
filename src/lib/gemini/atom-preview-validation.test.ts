@@ -31,7 +31,7 @@ describe("atom preview validation", () => {
       path.join(outputDir, "manifest.json"),
       JSON.stringify({
         version: 1,
-        model: "gemini-3.1-flash-image",
+        model: "GPT-Image-2",
         updatedAt: "2026-06-06T00:00:00.000Z",
         atoms: {
           [atomId]: {
@@ -67,7 +67,7 @@ describe("atom preview validation", () => {
       path.join(outputDir, "manifest.json"),
       JSON.stringify({
         version: 1,
-        model: "gemini-3.1-flash-image",
+        model: "GPT-Image-2",
         updatedAt: "2026-06-06T00:00:00.000Z",
         atoms: {},
       }),

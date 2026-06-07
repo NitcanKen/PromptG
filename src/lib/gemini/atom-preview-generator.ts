@@ -3,10 +3,16 @@ import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
-import type { ExpandedAtom } from "@/lib/seed/expanded-atoms";
+import { atomInputSchema, type AtomInput } from "@/lib/validation/atoms";
 import { EXPANDED_ATOMS } from "@/lib/seed/expanded-atoms";
+import {
+  isFullV2Category,
+  isMainScopeCategory,
+} from "@/lib/seed/expanded-atom-targets";
+import { SEED_ATOMS } from "@/lib/seed/seed-atoms";
 
-export const ATOM_PREVIEW_MODEL = "gemini-3.1-flash-image";
+export const ATOM_PREVIEW_MODEL = "GPT-Image-2";
+export const DEFAULT_ATOM_PREVIEW_BASE_URL = "https://token.mmh1.top";
 export const DEFAULT_ATOM_PREVIEW_OUTPUT_DIR = path.join(
   process.cwd(),
   "data",
@@ -19,11 +25,13 @@ export const DEFAULT_ATOM_PREVIEW_MAX_RETRIES = 3;
 const execFileAsync = promisify(execFile);
 
 type AtomPreviewMimeType = "image/png" | "image/jpeg" | "image/webp";
+type AtomPreviewScope = "main" | "v2";
+type AtomPreviewTarget = AtomInput & { id: string };
 
 export type AtomPreviewGenerateRequest = {
   model: string;
   prompt: string;
-  atom: ExpandedAtom;
+  atom: AtomPreviewTarget;
 };
 
 export type AtomPreviewGenerateResult = {
@@ -38,6 +46,7 @@ export type AtomPreviewClient = {
 
 export type AtomPreviewCliOptions = {
   dryRun?: boolean;
+  scope?: AtomPreviewScope;
   category?: string;
   ids?: string[];
   limit?: number;
@@ -51,6 +60,8 @@ export type AtomPreviewCliOptions = {
 
 export type RunAtomPreviewGenerationOptions = AtomPreviewCliOptions & {
   apiKey?: string;
+  baseUrl?: string;
+  model?: string;
   client?: AtomPreviewClient;
   sleep?: (ms: number) => Promise<void>;
 };
@@ -139,6 +150,10 @@ export function parseAtomPreviewArgs(argv: string[]): AtomPreviewCliOptions {
       options.dryRun = true;
     } else if (arg === "--force") {
       options.force = true;
+    } else if (arg === "--all-main") {
+      options.scope = "main";
+    } else if (arg === "--all-v2") {
+      options.scope = "v2";
     } else if (arg === "--category") {
       options.category = readValue("--category");
     } else if (arg.startsWith("--category=")) {
@@ -171,9 +186,17 @@ export function parseAtomPreviewArgs(argv: string[]): AtomPreviewCliOptions {
   return options;
 }
 
-export function selectAtomPreviewTargets(options: Pick<AtomPreviewCliOptions, "category" | "ids" | "limit">) {
+export function selectAtomPreviewTargets(
+  options: Pick<AtomPreviewCliOptions, "scope" | "category" | "ids" | "limit">,
+) {
   const ids = new Set(options.ids ?? []);
-  let atoms = EXPANDED_ATOMS;
+  let atoms = getApprovedPreviewAtoms();
+
+  if (options.scope === "main") {
+    atoms = atoms.filter((atom) => isMainScopeCategory(atom.category));
+  } else if (options.scope === "v2") {
+    atoms = atoms.filter((atom) => isFullV2Category(atom.category));
+  }
 
   if (options.category) {
     atoms = atoms.filter((atom) => atom.category === options.category);
@@ -190,40 +213,91 @@ export function selectAtomPreviewTargets(options: Pick<AtomPreviewCliOptions, "c
   return atoms;
 }
 
-export function buildAtomPreviewPrompt(atom: ExpandedAtom) {
-  const visualVariation = getVisualVariation(atom.id);
-  const categoryAddition =
-    atom.category === "髮型"
-      ? "\nCategory-specific instruction: close portrait or upper-body crop focused on hair shape. Keep outfit and background neutral."
-      : "";
+function getApprovedPreviewAtoms(): AtomPreviewTarget[] {
+  return [
+    ...new Map(
+      [...SEED_ATOMS, ...EXPANDED_ATOMS].map((atom) => [atom.id, normalizeAtomPreviewTarget(atom)]),
+    ).values(),
+  ];
+}
 
-  return `Create a square 1:1 reference image for a PromptG prompt atom library card.
-The image should clearly visualize this single atom concept:
-Category: ${atom.category}
+function normalizeAtomPreviewTarget(atom: { id: string } & Partial<AtomInput>) {
+  const { id, ...input } = atom;
+  return {
+    id,
+    ...atomInputSchema.parse(input),
+  };
+}
+
+export function buildAtomPreviewPrompt(atom: AtomPreviewTarget) {
+  const visualVariation = getVisualVariation(atom.id);
+  const displayCategory = atom.category === "Negative Atom" ? "Negative constraint" : atom.category;
+
+  return `Create one square 1:1 image that previews a single visual concept.
+The result must be immediately readable as the exact concept below, even at thumbnail size.
+Category: ${displayCategory}
 Title: ${atom.title}
 Description: ${atom.subtitle}
-Prompt fragment: ${atom.prompt}
+Meaning to preserve: ${atom.prompt}
 
-Use an Eastern aesthetic by default: contemporary East Asian photography, natural styling, refined everyday visual taste.
-If the atom explicitly describes Western, European, American, non-Eastern, or non-human content, follow the atom instead.
-Keep the image focused on this atom only. Do not overbuild a full scene unless the category is a scene, platform, layout, or post-processing category.
-Use a generic adult subject when a person is needed.
-No celebrity likeness, no brand logo, no copyrighted character, no extra text, no watermark-like text.
-Avoid reusing the same face, pose, outfit, or background across the whole atom preview library.
-For this atom, use this controlled variation: ${visualVariation}.
-Clean composition, visually readable at small card size.${categoryAddition}`;
+Visual direction:
+- 2.5D semi-realistic anime key visual, realistic ACG rendering, polished illustration quality.
+- Eastern ACG aesthetic by default: refined face design, tasteful styling, expressive lighting, clean silhouette, premium character-art finish.
+- If the concept explicitly requires Western, European, American, non-Eastern, or non-human content, follow that concept while keeping the same semi-realistic ACG rendering.
+- Use an adult original ACG character only when a person is needed.
+- No celebrity likeness, no existing copyrighted character, no brand logo, no watermark, no random text.
+- Avoid stock-photo realism, passport-photo lighting, bland commuter portrait energy, generic AI glamour, and unrelated decorative clutter.
+- Do not replace the concept with a generic beautiful person. The selected title and meaning must drive the image.
+- Controlled visual variation: ${visualVariation}.
+
+Category rendering rule:
+${getCategoryPreviewInstruction(atom)}
+
+Clean composition. Strong subject readability. No extra concepts.`;
+}
+
+function getCategoryPreviewInstruction(atom: AtomPreviewTarget) {
+  if (atom.id.startsWith("library-persona-addon-") || atom.category === "人設") {
+    return "Create a character design portrait with a distinctive silhouette, readable costume direction, recognizable role aura, and clearly adult original ACG character presence. Do not make the subject look underage.";
+  }
+
+  if (atom.category === "髮型") {
+    return "Create a hair design portrait or upper-body crop focused on the hair shape. Keep outfit and background secondary.";
+  }
+
+  if (["上裝", "下裝", "鞋履", "配飾", "道具", "妝容", "材質"].includes(atom.category)) {
+    return "Create a fashion or prop design image where the selected item is the main subject. The character exists only to demonstrate fit, scale, texture, and styling.";
+  }
+
+  if (["場景", "場景細節", "時間 / 季節 / 天氣", "光影", "色彩系統"].includes(atom.category)) {
+    return "Create an environment concept image; the location must be the main subject, or the lighting, weather, or color system must be the main subject when that is the selected concept. People are optional and must not steal focus.";
+  }
+
+  if (["鏡頭角度", "鏡頭質感", "景別", "構圖規則"].includes(atom.category)) {
+    return "Create a cinematic composition sample where camera placement, framing, lens feel, or composition rule is the main subject.";
+  }
+
+  if (["畫面影響", "版式設計", "文本元素", "平台媒介", "後期處理"].includes(atom.category)) {
+    return "Create a graphic preview where the medium, layout, overlay, or post-processing effect is the main subject. Use placeholder shapes instead of readable random text unless the concept is no-text.";
+  }
+
+  if (["主體數量 / 人物關係", "姿態", "手部動作", "身體構圖", "互動行為", "表情", "視線", "臉部特徵"].includes(atom.category)) {
+    return "Create a character pose or expression study where the body relationship, gesture, expression, gaze, or facial feature is the main subject.";
+  }
+
+  return "Create a focused visual study where the named concept is the main subject and every visible detail supports it.";
 }
 
 function getVisualVariation(atomId: string) {
   const variations = [
-    "soft window-lit studio wall, calm neutral styling",
-    "minimal city street portrait crop, subdued background",
-    "clean cafe window corner, shallow depth of field",
-    "simple outdoor greenery blur, natural daylight",
-    "plain editorial backdrop, cool refined styling",
-    "warm indoor hallway light, understated wardrobe",
-    "bright lifestyle portrait crop, uncluttered background",
-    "low-saturation film portrait feel, quiet urban texture",
+    "moonlit character-card rim light, clean graphic backdrop, crisp silhouette",
+    "soft neon anime portrait lighting, shallow depth, high character appeal",
+    "painterly studio backdrop, collectible ACG profile-card composition",
+    "cinematic school-uniform-adjacent styling, clean anime-realism face rendering",
+    "fantasy editorial character portrait lighting, refined East Asian ACG taste",
+    "urban night character-card crop, stylized bokeh, strong role aura",
+    "warm indoor anime portrait light, expressive eyes, polished semi-real texture",
+    "low-saturation filmic ACG portrait grade, delicate line-and-skin rendering",
   ];
   const checksum = Array.from(atomId).reduce((sum, char) => sum + char.charCodeAt(0), 0);
   return variations[checksum % variations.length];
@@ -308,11 +382,15 @@ async function writePreviewImage(
   return "image/png" satisfies AtomPreviewMimeType;
 }
 
-async function getGeminiApiKey(options: RunAtomPreviewGenerationOptions) {
-  await loadGeminiApiKeyFromLocalEnv();
-  const key = options.apiKey ?? process.env.GEMINI_API_KEY ?? process.env.GOOGLE_API_KEY;
+async function getAtomPreviewApiKey(options: RunAtomPreviewGenerationOptions) {
+  await loadAtomPreviewEnvFromLocalFile();
+  const key =
+    options.apiKey ??
+    process.env.ATOM_PREVIEW_API_KEY ??
+    process.env.GPT_IMAGE_API_KEY ??
+    process.env.OPENAI_API_KEY;
   if (!key) {
-    throw new Error("缺少 Gemini API key，請設定 GEMINI_API_KEY 或 GOOGLE_API_KEY。");
+    throw new Error("缺少圖片生成 API key，請設定 ATOM_PREVIEW_API_KEY。");
   }
   return key;
 }
@@ -333,8 +411,8 @@ function parseEnvLine(line: string) {
   return { key, value };
 }
 
-export async function loadGeminiApiKeyFromLocalEnv(envPath = path.join(process.cwd(), ".env.local")) {
-  if (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY) {
+export async function loadAtomPreviewEnvFromLocalFile(envPath = path.join(process.cwd(), ".env.local")) {
+  if (process.env.ATOM_PREVIEW_API_KEY && process.env.ATOM_PREVIEW_BASE_URL) {
     return;
   }
 
@@ -345,7 +423,17 @@ export async function loadGeminiApiKeyFromLocalEnv(envPath = path.join(process.c
 
   for (const line of text.split(/\r?\n/)) {
     const parsed = parseEnvLine(line);
-    if (!parsed || (parsed.key !== "GEMINI_API_KEY" && parsed.key !== "GOOGLE_API_KEY")) {
+    if (
+      !parsed ||
+      ![
+        "ATOM_PREVIEW_API_KEY",
+        "ATOM_PREVIEW_BASE_URL",
+        "ATOM_PREVIEW_MODEL",
+        "GPT_IMAGE_API_KEY",
+        "GPT_IMAGE_BASE_URL",
+        "GPT_IMAGE_MODEL",
+      ].includes(parsed.key)
+    ) {
       continue;
     }
 
@@ -353,7 +441,7 @@ export async function loadGeminiApiKeyFromLocalEnv(envPath = path.join(process.c
   }
 }
 
-function normalizeGeminiError(error: unknown): RetryableError {
+function normalizePreviewGenerationError(error: unknown): RetryableError {
   if (error instanceof Error) {
     return error as RetryableError;
   }
@@ -376,7 +464,7 @@ async function generateWithRetries(
       const result = await client.generate(request);
       return { result, attempts: attempt };
     } catch (error) {
-      lastError = normalizeGeminiError(error);
+      lastError = normalizePreviewGenerationError(error);
       if (attempt >= options.maxRetries || !isRetryable(lastError)) {
         break;
       }
@@ -384,7 +472,7 @@ async function generateWithRetries(
     }
   }
 
-  throw lastError ?? new Error("Gemini 生成失敗");
+  throw lastError ?? new Error("圖片生成失敗");
 }
 
 function createRateLimiter(rpm: number, sleep: (ms: number) => Promise<void>) {
@@ -418,80 +506,88 @@ async function runWithConcurrency<T>(
   await Promise.all(workers);
 }
 
-function extractInlineImage(response: GeminiRestResponse): AtomPreviewGenerateResult {
-  const parts = response.candidates?.flatMap((candidate) => candidate.content?.parts ?? []) ?? [];
-  const providerText = parts
-    .map((part) => part.text)
-    .filter((text): text is string => Boolean(text))
-    .join("\n");
-  const imagePart = parts.find((part) => part.inlineData?.data || part.inline_data?.data);
-  const inlineData = imagePart?.inlineData
-    ? {
-        data: imagePart.inlineData.data,
-        mimeType: imagePart.inlineData.mimeType,
-      }
-    : {
-        data: imagePart?.inline_data?.data,
-        mimeType: imagePart?.inline_data?.mime_type,
-      };
-
-  if (!inlineData?.data) {
-    throw new Error("Gemini 回應沒有包含圖片資料");
-  }
-
-  return {
-    bytes: Buffer.from(inlineData.data, "base64"),
-    mimeType: (inlineData.mimeType ?? "image/png") as AtomPreviewMimeType,
-    providerText,
-  };
-}
-
-type GeminiRestResponse = {
-  candidates?: Array<{
-    content?: {
-      parts?: Array<{
-        text?: string;
-        inlineData?: {
-          data?: string;
-          mimeType?: string;
-        };
-        inline_data?: {
-          data?: string;
-          mime_type?: string;
-        };
-      }>;
-    };
+type OpenAIImageResponse = {
+  data?: Array<{
+    b64_json?: string;
+    url?: string;
+  }>;
+  output?: Array<{
+    result?: string;
+    b64_json?: string;
+    url?: string;
   }>;
 };
 
-export function createGeminiRestClient(apiKey: string): AtomPreviewClient {
+function normalizeOpenAIImageBaseUrl(baseUrl: string) {
+  const trimmed = baseUrl.replace(/\/+$/, "");
+  return trimmed.endsWith("/v1") ? trimmed : `${trimmed}/v1`;
+}
+
+async function extractOpenAICompatibleImage(
+  response: OpenAIImageResponse,
+): Promise<AtomPreviewGenerateResult> {
+  const dataImage = response.data?.find((item) => item.b64_json || item.url);
+  const outputImage = response.output?.find((item) => item.b64_json || item.result || item.url);
+  const base64 = dataImage?.b64_json ?? outputImage?.b64_json ?? outputImage?.result;
+  const url = dataImage?.url ?? outputImage?.url;
+
+  if (base64) {
+    return {
+      bytes: Buffer.from(base64, "base64"),
+      mimeType: "image/png" satisfies AtomPreviewMimeType,
+    };
+  }
+
+  if (url) {
+    const imageResponse = await fetch(url);
+    if (!imageResponse.ok) {
+      const error = new Error(`圖片下載失敗，HTTP ${imageResponse.status}`) as RetryableError;
+      error.status = imageResponse.status;
+      throw error;
+    }
+
+    const contentType = imageResponse.headers.get("Content-Type") ?? "image/png";
+    return {
+      bytes: Buffer.from(await imageResponse.arrayBuffer()),
+      mimeType: contentType.includes("webp")
+        ? ("image/webp" as const)
+        : contentType.includes("jpeg") || contentType.includes("jpg")
+          ? ("image/jpeg" as const)
+          : ("image/png" as const),
+    };
+  }
+
+  throw new Error("圖片生成回應沒有包含圖片資料");
+}
+
+export function createOpenAICompatibleImageClient(apiKey: string, baseUrl: string): AtomPreviewClient {
   return {
     async generate(request) {
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1/models/${request.model}:generateContent`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-goog-api-key": apiKey,
-          },
-          body: JSON.stringify({
-            contents: [
-              {
-                parts: [{ text: request.prompt }],
-              },
-            ],
-          }),
+      const response = await fetch(`${normalizeOpenAIImageBaseUrl(baseUrl)}/images/generations`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
         },
-      );
+        body: JSON.stringify({
+          model: request.model,
+          prompt: request.prompt,
+          n: 1,
+          size: "1024x1024",
+          response_format: "b64_json",
+        }),
+      });
 
       if (!response.ok) {
-        const error = new Error(`Gemini 生成請求失敗，HTTP ${response.status}`) as RetryableError;
+        const text = await response.text().catch(() => "");
+        const error = new Error(
+          `圖片生成請求失敗，HTTP ${response.status}${text ? `: ${text.slice(0, 240)}` : ""}`,
+        ) as RetryableError;
         error.status = response.status;
         throw error;
       }
 
-      return extractInlineImage((await response.json()) as GeminiRestResponse);
+      return extractOpenAICompatibleImage((await response.json()) as OpenAIImageResponse);
     },
   };
 }
@@ -506,6 +602,13 @@ export async function runAtomPreviewGeneration(
   const concurrency = options.concurrency ?? DEFAULT_ATOM_PREVIEW_CONCURRENCY;
   const rpm = options.rpm ?? DEFAULT_ATOM_PREVIEW_RPM;
   const maxRetries = options.maxRetries ?? DEFAULT_ATOM_PREVIEW_MAX_RETRIES;
+  await loadAtomPreviewEnvFromLocalFile();
+  const model = options.model ?? process.env.ATOM_PREVIEW_MODEL ?? process.env.GPT_IMAGE_MODEL ?? ATOM_PREVIEW_MODEL;
+  const baseUrl =
+    options.baseUrl ??
+    process.env.ATOM_PREVIEW_BASE_URL ??
+    process.env.GPT_IMAGE_BASE_URL ??
+    DEFAULT_ATOM_PREVIEW_BASE_URL;
   const sleep = options.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
   const targets = selectAtomPreviewTargets(options);
   const planned = targets.map((atom) => {
@@ -537,7 +640,8 @@ export async function runAtomPreviewGeneration(
 
   await fs.mkdir(path.join(outputDir, "logs"), { recursive: true });
   const manifest = await readManifest(manifestPath);
-  const client = options.client ?? createGeminiRestClient(await getGeminiApiKey(options));
+  manifest.model = model;
+  const client = options.client ?? createOpenAICompatibleImageClient(await getAtomPreviewApiKey(options), baseUrl);
   const waitForRateLimit = createRateLimiter(rpm, sleep);
   const generated: string[] = [];
   const skipped: string[] = [];
@@ -577,7 +681,7 @@ export async function runAtomPreviewGeneration(
       const { result, attempts } = await generateWithRetries(
         client,
         {
-          model: ATOM_PREVIEW_MODEL,
+          model,
           prompt,
           atom,
         },

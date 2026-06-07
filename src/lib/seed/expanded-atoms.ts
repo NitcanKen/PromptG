@@ -1,8 +1,21 @@
 import type { AtomInput } from "@/lib/validation/atoms";
 
+import { EXPANDED_MAIN_ATOMS } from "@/lib/seed/expanded-main-atoms";
+import { EXPANDED_PERSONA_ADDON_ATOMS } from "@/lib/seed/expanded-persona-addons";
+
+export type ExpandedAtomSource =
+  | "subject-hair-atoms"
+  | "subject-atoms"
+  | "body-atoms"
+  | "styling-atoms-part-1"
+  | "styling-atoms-part-2"
+  | "scene-atoms"
+  | "camera-atoms"
+  | "media-atoms";
+
 export type ExpandedAtom = AtomInput & {
   id: string;
-  source: "subject-hair-atoms";
+  source: ExpandedAtomSource;
 };
 
 export const GENERATED_ATOM_PREVIEW_ROUTE_PREFIX = "/api/uploads/atom-previews/";
@@ -570,4 +583,10 @@ export const EXPANDED_HAIR_ATOMS = [
   },
 ] satisfies ExpandedAtom[];
 
-export const EXPANDED_ATOMS = [...EXPANDED_HAIR_ATOMS] satisfies ExpandedAtom[];
+export const EXPANDED_ATOMS = [
+  ...EXPANDED_HAIR_ATOMS,
+  ...EXPANDED_MAIN_ATOMS,
+  ...EXPANDED_PERSONA_ADDON_ATOMS,
+] satisfies ExpandedAtom[];
+
+export { EXPANDED_PERSONA_ADDON_ATOMS } from "@/lib/seed/expanded-persona-addons";
