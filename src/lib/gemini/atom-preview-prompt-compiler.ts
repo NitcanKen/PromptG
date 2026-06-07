@@ -15,104 +15,104 @@ type CategoryPreviewTemplate = {
 };
 
 export const GLOBAL_PREVIEW_STYLE =
-  "2.5D semi-realistic ACG illustration, live-action-feeling anime character photography when characters are present, premium key visual quality, clean silhouette, strong thumbnail readability, polished lighting. When a person appears, use an adult original ACG character. No celebrity likeness, no brand logos, no copyrighted characters, no watermark, no random text.";
+  "2.5D semi-realistic ACG illustration, live-action-feeling anime character photography when characters are present, premium key visual quality, clean silhouette, strong thumbnail readability, polished lighting. When any person appears, every visible person must be a clearly adult female original ACG character. No male or masculine-presenting subjects, no underage appearance, no celebrity likeness, no brand logos, no copyrighted characters, no watermark, no random text.";
 
 export const CATEGORY_PREVIEW_TEMPLATES = {
   人設: {
     target: "character design portrait",
     instruction:
-      "Create a character design portrait for a clearly adult original ACG character. Role identity must be clear from distinctive silhouette, expression, costume direction, and aura. Do not make the subject look underage. Do not over-focus on hair, pose, outfit brand, or background unless they define the role.",
-    avoid: "Avoid generic attractive portrait drift, street-passenger neutrality, unclear role identity, and backgrounds that overpower the character.",
+      "Create a character design portrait for a clearly adult female original ACG character. Role identity must be clear from distinctive silhouette, expression, costume direction, and aura. Do not make the subject look underage or masculine-presenting. Do not over-focus on hair, pose, outfit brand, or background unless they define the role.",
+    avoid: "Avoid male or masculine-presenting subjects, generic attractive portrait drift, street-passenger neutrality, unclear role identity, and backgrounds that overpower the character.",
   },
   臉部特徵: {
     target: "face study",
     instruction:
-      "Create a close-up ACG face study focused on the named facial feature. Keep hair, clothing, background, pose, and lighting simple so facial structure or facial impression is the main subject.",
-    avoid: "Avoid replacing the facial feature with expression, gaze, hairstyle, or generic face beauty.",
+      "Create a close-up ACG face study of a clearly adult female character focused on the named facial feature. Keep hair, clothing, background, pose, and lighting simple so facial structure or facial impression is the main subject.",
+    avoid: "Avoid male or masculine-presenting faces, replacing the facial feature with expression, gaze, hairstyle, or generic face beauty.",
   },
   髮型: {
     target: "hair design portrait",
     instruction:
-      "Create a close portrait or upper-body hair design image. Hair silhouette, hairline, side locks, length, texture, and color must be clearly visible. Outfit and background are secondary.",
-    avoid: "Avoid cropped hair, face-dominant framing, and hairstyles that are hard to distinguish from nearby variants.",
+      "Create a close portrait or upper-body hair design image on a clearly adult female character. Hair silhouette, hairline, side locks, length, texture, and color must be clearly visible. Outfit and background are secondary.",
+    avoid: "Avoid male or masculine-presenting subjects, cropped hair, face-dominant framing, and hairstyles that are hard to distinguish from nearby variants.",
   },
   表情: {
     target: "expression sheet crop",
     instruction:
-      "Create a face-and-shoulders expression study. Mouth, eyes, cheeks, brow tension, and emotional signal must make the named expression the only emotional focus.",
-    avoid: "Avoid subtle unreadable emotion, a different emotion, or overacting that breaks the semi-realistic style.",
+      "Create a face-and-shoulders expression study of a clearly adult female character. Mouth, eyes, cheeks, brow tension, and emotional signal must make the named expression the only emotional focus.",
+    avoid: "Avoid male or masculine-presenting subjects, subtle unreadable emotion, a different emotion, or overacting that breaks the semi-realistic style.",
   },
   視線: {
     target: "gaze direction study",
     instruction:
-      "Create a portrait focused on eye direction and attention target. The gaze vector must be clear, with restrained expression so it does not override the gaze concept.",
-    avoid: "Avoid ambiguous eye direction, expression replacing gaze, or camera angle that hides the eyes.",
+      "Create a portrait of a clearly adult female character focused on eye direction and attention target. The gaze vector must be clear, with restrained expression so it does not override the gaze concept.",
+    avoid: "Avoid male or masculine-presenting subjects, ambiguous eye direction, expression replacing gaze, or camera angle that hides the eyes.",
   },
   "主體數量 / 人物關係": {
     target: "subject-count and relationship staging",
     instruction:
-      "Create a simple staged composition where the number of subjects and their relationship are obvious. Use clean spacing, clear hierarchy, and readable interaction distance.",
-    avoid: "Avoid wrong subject count, unclear relationship, and background crowds that confuse the count.",
+      "Create a simple staged composition where the number of clearly adult female subjects and their relationship are obvious. Use clean spacing, clear hierarchy, and readable interaction distance.",
+    avoid: "Avoid male or masculine-presenting subjects, wrong subject count, unclear relationship, and background crowds that confuse the count.",
   },
   姿態: {
     target: "whole-body pose study",
     instruction:
-      "Create a full-body or three-quarter pose study where the named body posture is dominant. Clothing and background should support limb readability and body balance.",
-    avoid: "Avoid cropped bodies, hidden limbs, and pose concepts reduced to hand gesture only.",
+      "Create a full-body or three-quarter pose study of a clearly adult female character where the named body posture is dominant. Clothing and background should support limb readability and body balance.",
+    avoid: "Avoid male or masculine-presenting subjects, cropped bodies, hidden limbs, and pose concepts reduced to hand gesture only.",
   },
   手部動作: {
     target: "hand gesture study",
     instruction:
-      "Create a close or medium crop focused on the hand gesture. Fingers, palm orientation, object contact, and relation to the face or body must be natural and readable.",
-    avoid: "Avoid malformed hands, hidden gesture details, and unrelated props stealing focus.",
+      "Create a close or medium crop focused on the hand gesture of a clearly adult female character. Fingers, palm orientation, object contact, and relation to the face or body must be natural and readable.",
+    avoid: "Avoid male or masculine-presenting subjects, malformed hands, hidden gesture details, and unrelated props stealing focus.",
   },
   身體構圖: {
     target: "body crop and visibility example",
     instruction:
-      "Create a composition sample focused on body visibility and crop boundaries. The body region named by the concept must be clearly included and framed.",
-    avoid: "Avoid confusing body crop with camera distance, wrong crop boundaries, and unstable framing.",
+      "Create a composition sample of a clearly adult female character focused on body visibility and crop boundaries. The body region named by the concept must be clearly included and framed.",
+    avoid: "Avoid male or masculine-presenting subjects, confusing body crop with camera distance, wrong crop boundaries, and unstable framing.",
   },
   互動行為: {
     target: "action and cause-effect",
     instruction:
-      "Create an action image where the subject actively interacts with the named object, person, or environment. Action must be visible through contact, body direction, and object placement.",
-    avoid: "Avoid static posing, unused objects, or action cues that cannot be read at thumbnail size.",
+      "Create an action image where a clearly adult female subject actively interacts with the named object, person, or environment. Action must be visible through contact, body direction, and object placement.",
+    avoid: "Avoid male or masculine-presenting subjects, static posing, unused objects, or action cues that cannot be read at thumbnail size.",
   },
   上裝: {
     target: "upper garment design",
     instruction:
-      "Create a fashion design preview focused on the upper garment. Neckline, sleeves, fit, fabric edge, closure, and silhouette must be visible. The face should not steal focus.",
-    avoid: "Avoid portrait dominance, cropped clothing, and unclear garment material.",
+      "Create a fashion design preview focused on the upper garment on a clearly adult female model. Neckline, sleeves, fit, fabric edge, closure, and silhouette must be visible. The face should not steal focus.",
+    avoid: "Avoid male or masculine-presenting models, portrait dominance, cropped clothing, and unclear garment material.",
   },
   下裝: {
     target: "lower garment design",
     instruction:
-      "Create a fashion design preview focused on the lower garment. Waistline, length, leg shape, folds, fabric weight, and silhouette must be visible.",
-    avoid: "Avoid cropped lower body, confusing the garment with a dress or coat, and unreadable fabric shape.",
+      "Create a fashion design preview focused on the lower garment on a clearly adult female model. Waistline, length, leg shape, folds, fabric weight, and silhouette must be visible.",
+    avoid: "Avoid male or masculine-presenting models, cropped lower body, confusing the garment with a dress or coat, and unreadable fabric shape.",
   },
   鞋履: {
     target: "footwear design",
     instruction:
-      "Create a footwear-focused preview. Shoes must be large enough to inspect, with sole shape, toe box, material, color, and styling context visible.",
-    avoid: "Avoid tiny shoes, cropped feet, brand-like marks, and full-character framing that hides footwear detail.",
+      "Create a footwear-focused preview on a clearly adult female model when legs or a wearer appear. Shoes must be large enough to inspect, with sole shape, toe box, material, color, and styling context visible.",
+    avoid: "Avoid male or masculine-presenting models, tiny shoes, cropped feet, brand-like marks, and full-character framing that hides footwear detail.",
   },
   配飾: {
     target: "accessory detail",
     instruction:
-      "Create an accessory-focused preview where the named accessory is close, visible, and integrated with a simple character styling context. Avoid brand markings.",
-    avoid: "Avoid full portrait dominance, multiple competing accessories, and accessories too small to inspect.",
+      "Create an accessory-focused preview where the named accessory is close, visible, and integrated with a simple clearly adult female styling context. Avoid brand markings.",
+    avoid: "Avoid male or masculine-presenting subjects, full portrait dominance, multiple competing accessories, and accessories too small to inspect.",
   },
   道具: {
     target: "prop object and usage",
     instruction:
-      "Create a prop-focused preview where the object is visible and naturally held, placed, or used. The prop must be the main subject; a character is optional for scale and interaction.",
-    avoid: "Avoid missing props, tiny props, and unrelated objects replacing the selected prop.",
+      "Create a prop-focused preview where the object is visible and naturally held, placed, or used. The prop must be the main subject; if a character appears for scale or interaction, make her clearly adult female.",
+    avoid: "Avoid male or masculine-presenting subjects, missing props, tiny props, and unrelated objects replacing the selected prop.",
   },
   妝容: {
     target: "makeup finish",
     instruction:
-      "Create a close beauty portrait focused on makeup finish, color placement, eye detail, lip finish, skin texture, and intensity. Hair and accessories are secondary.",
-    avoid: "Avoid face-feature focus replacing makeup, makeup too subtle to see, or unrelated overdone glam.",
+      "Create a close beauty portrait of a clearly adult female character focused on makeup finish, color placement, eye detail, lip finish, skin texture, and intensity. Hair and accessories are secondary.",
+    avoid: "Avoid male or masculine-presenting subjects, face-feature focus replacing makeup, makeup too subtle to see, or unrelated overdone glam.",
   },
   場景: {
     target: "main location concept",

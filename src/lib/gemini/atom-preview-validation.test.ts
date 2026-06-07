@@ -88,4 +88,40 @@ describe("atom preview validation", () => {
       ]),
     );
   });
+
+  it("can validate only successfully generated manifest entries when generation is intentionally partial", async () => {
+    const outputDir = await makeTempDir();
+    const atomId = "library-hair-curtain-bangs";
+    const promptHash = "0123456789abcdef";
+    const filePath = path.join(outputDir, atomId, `${promptHash}.png`);
+
+    await fs.mkdir(path.dirname(filePath), { recursive: true });
+    await fs.writeFile(filePath, oneByOnePng);
+    await fs.writeFile(
+      path.join(outputDir, "manifest.json"),
+      JSON.stringify({
+        version: 1,
+        model: "GPT-Image-2",
+        updatedAt: "2026-06-08T00:00:00.000Z",
+        atoms: {
+          [atomId]: {
+            atomId,
+            status: "generated",
+            previewImagePath: `/api/uploads/atom-previews/${atomId}/${promptHash}.png`,
+            filePath,
+            fileSize: oneByOnePng.byteLength,
+          },
+        },
+      }),
+    );
+
+    const result = await validateAtomPreviews({
+      outputDir,
+      existingOnly: true,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.checked).toHaveLength(1);
+    expect(result.checked[0]?.atomId).toBe(atomId);
+  });
 });

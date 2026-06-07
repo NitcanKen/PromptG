@@ -9,7 +9,7 @@ import {
 } from "@/lib/seed/expanded-atom-targets";
 
 describe("expanded atom target contracts", () => {
-  it("keeps the approved main scope plus persona add-on at 31 categories and 780 final atoms", () => {
+  it("keeps the approved main scope plus persona add-on minimum at 31 categories and 780 atoms", () => {
     expect(Object.keys(MAIN_SCOPE_CATEGORY_TARGETS)).toHaveLength(31);
     expect(getCategoryTargetTotal(MAIN_SCOPE_CATEGORY_TARGETS)).toBe(780);
     expect(MAIN_SCOPE_CATEGORY_TARGETS["人設"]).toBe(80);

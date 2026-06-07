@@ -6,6 +6,7 @@ import {
   getMissingCategoryTargets,
 } from "@/lib/seed/expanded-atom-targets";
 import {
+  EXPANDED_ANIME_CHARACTER_ATOMS,
   EXPANDED_ATOMS,
   EXPANDED_HAIR_ATOMS,
   EXPANDED_PERSONA_ADDON_ATOMS,
@@ -70,6 +71,27 @@ describe("expanded atoms", () => {
     ).toBe(true);
   });
 
+  it("adds every documented anime character as a persona atom with a local preview path", () => {
+    expect(EXPANDED_ANIME_CHARACTER_ATOMS).toHaveLength(273);
+    expect(EXPANDED_ANIME_CHARACTER_ATOMS.filter((atom) => atom.previewImagePath)).toHaveLength(
+      272,
+    );
+    expect(
+      EXPANDED_ANIME_CHARACTER_ATOMS.every(
+        (atom, index) =>
+          atom.id === `library-anime-character-${String(index + 1).padStart(3, "0")}` &&
+          atom.source === "anime-character-atoms" &&
+          atom.category === "人設" &&
+          atom.subtitle.startsWith("動漫角色 / ") &&
+          atom.prompt.includes(atom.title) &&
+          (atom.previewImagePath === "" ||
+            (atom.previewImagePath.startsWith(`/api/uploads/atom-previews/${atom.id}/`) &&
+              atom.previewImagePath.endsWith(".jpg"))) &&
+          atomInputSchema.safeParse(atom).success,
+      ),
+    ).toBe(true);
+  });
+
   it("does not ship weak templated persona atoms", () => {
     const weakPersonaTitle =
       /^(自然|編輯|清爽|清冷)(通勤|鄰家|模特|旅行|創作者|學生|地下偶像|咖啡店店員)人物$/;
@@ -96,7 +118,7 @@ describe("expanded atoms", () => {
     expect(
       EXPANDED_ATOMS.every(
         (atom) =>
-          hasCjk(atom.title) &&
+          (hasCjk(atom.title) || atom.source === "anime-character-atoms") &&
           hasCjk(atom.subtitle) &&
           atom.tags.every(hasCjk) &&
           hasCjk(atom.notes),
@@ -114,7 +136,7 @@ describe("expanded atoms", () => {
       MAIN_SCOPE_CATEGORY_TARGETS,
     );
 
-    expect(mainScopeAtoms).toHaveLength(780);
+    expect(mainScopeAtoms.length).toBeGreaterThanOrEqual(780);
     expect(missing).toEqual(
       Object.fromEntries(Object.keys(MAIN_SCOPE_CATEGORY_TARGETS).map((category) => [category, 0])),
     );

@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import { auditAtoms } from "@/lib/atoms/atom-quality-audit";
-import { EXPANDED_ATOMS } from "@/lib/seed/expanded-atoms";
+import {
+  EXPANDED_ANIME_CHARACTER_ATOMS,
+  EXPANDED_ATOMS,
+} from "@/lib/seed/expanded-atoms";
 import { SEED_ATOMS } from "@/lib/seed/seed-atoms";
 
 function uniqueAtoms() {
@@ -12,9 +15,10 @@ describe("atom quality audit", () => {
   it("audits the full approved atom inventory", () => {
     const atoms = uniqueAtoms();
     const audit = auditAtoms(atoms);
+    const expectedTotal = 785 + EXPANDED_ANIME_CHARACTER_ATOMS.length;
 
-    expect(atoms).toHaveLength(785);
-    expect(audit.summary.total).toBe(785);
+    expect(atoms).toHaveLength(expectedTotal);
+    expect(audit.summary.total).toBe(expectedTotal);
   });
 
   it("rejects forbidden boilerplate, duplicate prompts, vague prompts, skeleton repetition, and category mismatch", () => {

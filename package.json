@@ -10,7 +10,10 @@
     "test": "vitest run",
     "export:material-shards": "tsx scripts/export-material-shards.ts",
     "audit:atom-quality": "tsx scripts/audit-atom-quality.ts",
+    "import:anime-character-atoms": "tsx scripts/import-anime-character-atoms.ts",
     "generate:atom-previews": "tsx scripts/generate-atom-previews.ts",
+    "generate:atom-previews:full": "tsx scripts/run-atom-preview-full-generation.ts",
+    "check:atom-previews:full": "tsx scripts/check-atom-preview-full-generation.ts",
     "purge:atom-previews": "tsx scripts/purge-atom-previews.ts",
     "validate:atom-previews": "tsx scripts/validate-atom-previews.ts"
   },

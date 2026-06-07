@@ -36,6 +36,10 @@ type ValidationResult = {
   manifestPath: string;
 };
 
+type ValidateAtomPreviewsOptions = Pick<AtomPreviewCliOptions, "category" | "ids" | "limit" | "outputDir"> & {
+  existingOnly?: boolean;
+};
+
 function readPngDimensions(data: Buffer) {
   const signature = "89504e470d0a1a0a";
   if (data.subarray(0, 8).toString("hex") !== signature) {
@@ -67,12 +71,18 @@ async function readManifest(manifestPath: string) {
 }
 
 export async function validateAtomPreviews(
-  options: Pick<AtomPreviewCliOptions, "category" | "ids" | "limit" | "outputDir"> = {},
+  options: ValidateAtomPreviewsOptions = {},
 ): Promise<ValidationResult> {
   const outputDir = options.outputDir ?? DEFAULT_ATOM_PREVIEW_OUTPUT_DIR;
   const manifestPath = path.join(outputDir, "manifest.json");
   const manifest = await readManifest(manifestPath);
-  const targets = selectAtomPreviewTargets(options);
+  const allTargets = selectAtomPreviewTargets(options);
+  const targets = options.existingOnly
+    ? allTargets.filter((atom) => {
+        const entry = manifest.atoms?.[atom.id];
+        return entry?.status === "generated" || entry?.status === "skipped_existing";
+      })
+    : allTargets;
   const errors: string[] = [];
   const checked: CheckedPreview[] = [];
 

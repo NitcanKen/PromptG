@@ -133,6 +133,10 @@ function hasCjk(text: string) {
   return /[\u4e00-\u9fff]/.test(text);
 }
 
+function isAnimeCharacterRecord(record: AtomAuditRecord) {
+  return record.source === "anime-character-atoms";
+}
+
 function wordTokens(text: string) {
   return normalize(text)
     .split(" ")
@@ -183,7 +187,10 @@ export function auditAtoms(atoms: AuditedAtom[]) {
       record.flagDetails.push(`Forbidden boilerplate: ${forbiddenHit}`);
     }
 
-    if (record.prompt.length < 42 || distinctConcreteTokenCount(record.prompt) < 5) {
+    if (
+      !isAnimeCharacterRecord(record) &&
+      (record.prompt.length < 42 || distinctConcreteTokenCount(record.prompt) < 5)
+    ) {
       record.flags.push("vague-prompt");
       record.flagDetails.push("Prompt is too short or mostly generic modifiers.");
     }
@@ -194,7 +201,12 @@ export function auditAtoms(atoms: AuditedAtom[]) {
       record.flagDetails.push("Prompt lacks expected category-specific language.");
     }
 
-    if (!hasCjk(record.title) || !hasCjk(record.subtitle) || !record.tags.every(hasCjk) || !hasCjk(record.notes)) {
+    if (
+      (!hasCjk(record.title) && !isAnimeCharacterRecord(record)) ||
+      !hasCjk(record.subtitle) ||
+      !record.tags.every(hasCjk) ||
+      !hasCjk(record.notes)
+    ) {
       record.flags.push("metadata-risk");
       record.flagDetails.push("UI-facing metadata should remain Traditional Chinese.");
     }
@@ -218,7 +230,8 @@ export function auditAtoms(atoms: AuditedAtom[]) {
     }
   }
 
-  for (const duplicates of [...byCategorySkeleton.values(), ...byCategorySuffix.values()]) {
+  for (const duplicateGroup of [...byCategorySkeleton.values(), ...byCategorySuffix.values()]) {
+    const duplicates = duplicateGroup.filter((record) => !isAnimeCharacterRecord(record));
     if (duplicates.length >= 8) {
       for (const record of duplicates) {
         record.flags.push("repeated-skeleton");

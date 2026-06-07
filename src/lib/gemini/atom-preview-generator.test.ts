@@ -12,7 +12,10 @@ import {
 } from "@/lib/gemini/atom-preview-generator";
 import { buildAtomPreviewPrompt } from "@/lib/gemini/atom-preview-prompt-compiler";
 import { getCategoryTargetTotal, MAIN_SCOPE_CATEGORY_TARGETS } from "@/lib/seed/expanded-atom-targets";
-import { EXPANDED_HAIR_ATOMS } from "@/lib/seed/expanded-atoms";
+import {
+  EXPANDED_ANIME_CHARACTER_ATOMS,
+  EXPANDED_HAIR_ATOMS,
+} from "@/lib/seed/expanded-atoms";
 
 const tempDirs: string[] = [];
 
@@ -50,8 +53,9 @@ describe("atom preview generator", () => {
     expect(prompt).toContain("Concept meaning: curtain bangs");
     expect(prompt).toContain("2.5D semi-realistic ACG illustration");
     expect(prompt).toContain("live-action-feeling anime character photography");
-    expect(prompt).toContain("adult original ACG character");
-    expect(prompt).toContain("No celebrity likeness");
+    expect(prompt).toContain("clearly adult female original ACG character");
+    expect(prompt).toContain("No male or masculine-presenting subjects");
+    expect(prompt).toMatch(/no celebrity likeness/i);
     expect(prompt).toContain("hair design portrait");
     expect(prompt).not.toContain("contemporary East Asian photography");
     expect(prompt).not.toContain("PromptG");
@@ -59,14 +63,14 @@ describe("atom preview generator", () => {
     expect(prompt).not.toContain("library card");
   });
 
-  it("builds persona add-on preview prompts as distinctive adult ACG character references", () => {
+  it("builds persona add-on preview prompts as distinctive adult female ACG character references", () => {
     const target = selectAtomPreviewTargets({ ids: ["library-persona-addon-01"] })[0];
     const prompt = buildAtomPreviewPrompt(target);
 
     expect(prompt).toContain("character design portrait");
     expect(prompt).toContain("distinctive silhouette");
-    expect(prompt).toContain("clearly adult original ACG character");
-    expect(prompt).toContain("Do not make the subject look underage");
+    expect(prompt).toContain("clearly adult female original ACG character");
+    expect(prompt).toContain("Do not make the subject look underage or masculine-presenting");
   });
 
   it("treats scene prompts as environment concepts instead of forcing generic portraits", () => {
@@ -118,11 +122,14 @@ describe("atom preview generator", () => {
     const targets = selectAtomPreviewTargets({ scope: "main" });
     const ids = targets.map((atom) => atom.id);
 
-    expect(targets).toHaveLength(getCategoryTargetTotal(MAIN_SCOPE_CATEGORY_TARGETS));
+    expect(targets).toHaveLength(
+      getCategoryTargetTotal(MAIN_SCOPE_CATEGORY_TARGETS) + EXPANDED_ANIME_CHARACTER_ATOMS.length,
+    );
     expect(new Set(ids).size).toBe(targets.length);
     expect(ids).toContain("seed-persona-soft-cinematic");
     expect(ids).toContain("seed-hair-airy-bangs");
     expect(ids).toContain("library-hair-curtain-bangs");
+    expect(ids).toContain("library-anime-character-001");
   });
 
   it("normalizes preview targets with atom defaults before prompt generation", () => {

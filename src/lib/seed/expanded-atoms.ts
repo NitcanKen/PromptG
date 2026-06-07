@@ -1,9 +1,11 @@
 import type { AtomInput } from "@/lib/validation/atoms";
 
+import { EXPANDED_ANIME_CHARACTER_ATOMS } from "@/lib/seed/anime-character-atoms";
 import { EXPANDED_MAIN_ATOMS } from "@/lib/seed/expanded-main-atoms";
 import { EXPANDED_PERSONA_ADDON_ATOMS } from "@/lib/seed/expanded-persona-addons";
 
 export type ExpandedAtomSource =
+  | "anime-character-atoms"
   | "subject-hair-atoms"
   | "subject-atoms"
   | "body-atoms"
@@ -587,6 +589,8 @@ export const EXPANDED_ATOMS = [
   ...EXPANDED_HAIR_ATOMS,
   ...EXPANDED_MAIN_ATOMS,
   ...EXPANDED_PERSONA_ADDON_ATOMS,
+  ...EXPANDED_ANIME_CHARACTER_ATOMS,
 ] satisfies ExpandedAtom[];
 
+export { EXPANDED_ANIME_CHARACTER_ATOMS } from "@/lib/seed/anime-character-atoms";
 export { EXPANDED_PERSONA_ADDON_ATOMS } from "@/lib/seed/expanded-persona-addons";

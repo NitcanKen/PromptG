@@ -27,6 +27,7 @@ export const DEFAULT_ATOM_PREVIEW_OUTPUT_DIR = path.join(
 export const DEFAULT_ATOM_PREVIEW_CONCURRENCY = 4;
 export const DEFAULT_ATOM_PREVIEW_RPM = 72;
 export const DEFAULT_ATOM_PREVIEW_MAX_RETRIES = 3;
+export const DEFAULT_ATOM_PREVIEW_REQUEST_TIMEOUT_MS = 120_000;
 const execFileAsync = promisify(execFile);
 
 type AtomPreviewMimeType = "image/png" | "image/jpeg" | "image/webp";
@@ -61,6 +62,7 @@ export type AtomPreviewCliOptions = {
   concurrency?: number;
   rpm?: number;
   maxRetries?: number;
+  requestTimeoutMs?: number;
   runId?: string;
 };
 
@@ -136,6 +138,16 @@ function parsePositiveInteger(raw: string, label: string) {
   return value;
 }
 
+function createTimeoutSignal(timeoutMs: number) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  return {
+    signal: controller.signal,
+    clear: () => clearTimeout(timeout),
+  };
+}
+
 function splitIds(raw: string) {
   return raw
     .split(",")
@@ -201,6 +213,13 @@ export function parseAtomPreviewArgs(argv: string[]): AtomPreviewCliOptions {
       options.rpm = parsePositiveInteger(readValue("--rpm"), "--rpm");
     } else if (arg.startsWith("--rpm=")) {
       options.rpm = parsePositiveInteger(arg.slice("--rpm=".length), "--rpm");
+    } else if (arg === "--request-timeout-ms") {
+      options.requestTimeoutMs = parsePositiveInteger(readValue("--request-timeout-ms"), "--request-timeout-ms");
+    } else if (arg.startsWith("--request-timeout-ms=")) {
+      options.requestTimeoutMs = parsePositiveInteger(
+        arg.slice("--request-timeout-ms=".length),
+        "--request-timeout-ms",
+      );
     } else if (arg === "--output-dir") {
       options.outputDir = readValue("--output-dir");
     } else if (arg.startsWith("--output-dir=")) {
@@ -562,6 +581,7 @@ function normalizeOpenAIImageBaseUrl(baseUrl: string) {
 
 async function extractOpenAICompatibleImage(
   response: OpenAIImageResponse,
+  timeoutMs = DEFAULT_ATOM_PREVIEW_REQUEST_TIMEOUT_MS,
 ): Promise<AtomPreviewGenerateResult> {
   const dataImage = response.data?.find((item) => item.b64_json || item.url);
   const outputImage = response.output?.find((item) => item.b64_json || item.result || item.url);
@@ -576,7 +596,8 @@ async function extractOpenAICompatibleImage(
   }
 
   if (url) {
-    const imageResponse = await fetch(url);
+    const timeout = createTimeoutSignal(timeoutMs);
+    const imageResponse = await fetch(url, { signal: timeout.signal }).finally(timeout.clear);
     if (!imageResponse.ok) {
       const error = new Error(`圖片下載失敗，HTTP ${imageResponse.status}`) as RetryableError;
       error.status = imageResponse.status;
@@ -597,15 +618,21 @@ async function extractOpenAICompatibleImage(
   throw new Error("圖片生成回應沒有包含圖片資料");
 }
 
-export function createOpenAICompatibleImageClient(apiKey: string, baseUrl: string): AtomPreviewClient {
+export function createOpenAICompatibleImageClient(
+  apiKey: string,
+  baseUrl: string,
+  requestTimeoutMs = DEFAULT_ATOM_PREVIEW_REQUEST_TIMEOUT_MS,
+): AtomPreviewClient {
   return {
     async generate(request) {
+      const timeout = createTimeoutSignal(requestTimeoutMs);
       const response = await fetch(`${normalizeOpenAIImageBaseUrl(baseUrl)}/images/generations`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${apiKey}`,
           "Content-Type": "application/json",
         },
+        signal: timeout.signal,
         body: JSON.stringify({
           model: request.model,
           prompt: request.prompt,
@@ -613,7 +640,7 @@ export function createOpenAICompatibleImageClient(apiKey: string, baseUrl: strin
           size: "1024x1024",
           response_format: "b64_json",
         }),
-      });
+      }).finally(timeout.clear);
 
       if (!response.ok) {
         const text = await response.text().catch(() => "");
@@ -624,7 +651,7 @@ export function createOpenAICompatibleImageClient(apiKey: string, baseUrl: strin
         throw error;
       }
 
-      return extractOpenAICompatibleImage((await response.json()) as OpenAIImageResponse);
+      return extractOpenAICompatibleImage((await response.json()) as OpenAIImageResponse, requestTimeoutMs);
     },
   };
 }
@@ -639,6 +666,7 @@ export async function runAtomPreviewGeneration(
   const concurrency = options.concurrency ?? DEFAULT_ATOM_PREVIEW_CONCURRENCY;
   const rpm = options.rpm ?? DEFAULT_ATOM_PREVIEW_RPM;
   const maxRetries = options.maxRetries ?? DEFAULT_ATOM_PREVIEW_MAX_RETRIES;
+  const requestTimeoutMs = options.requestTimeoutMs ?? DEFAULT_ATOM_PREVIEW_REQUEST_TIMEOUT_MS;
   await loadAtomPreviewEnvFromLocalFile();
   const model = options.model ?? process.env.ATOM_PREVIEW_MODEL ?? process.env.GPT_IMAGE_MODEL ?? ATOM_PREVIEW_MODEL;
   const baseUrl =
@@ -664,6 +692,7 @@ export async function runAtomPreviewGeneration(
   assertPositiveInteger(concurrency, "--concurrency");
   assertPositiveInteger(rpm, "--rpm");
   assertPositiveInteger(maxRetries, "--max-retries");
+  assertPositiveInteger(requestTimeoutMs, "--request-timeout-ms");
 
   if (options.dryRun) {
     return {
@@ -679,7 +708,8 @@ export async function runAtomPreviewGeneration(
   await fs.mkdir(path.join(outputDir, "logs"), { recursive: true });
   const manifest = await readManifest(manifestPath);
   manifest.model = model;
-  const client = options.client ?? createOpenAICompatibleImageClient(await getAtomPreviewApiKey(options), baseUrl);
+  const client =
+    options.client ?? createOpenAICompatibleImageClient(await getAtomPreviewApiKey(options), baseUrl, requestTimeoutMs);
   const waitForRateLimit = createRateLimiter(rpm, sleep);
   const generated: string[] = [];
   const skipped: string[] = [];

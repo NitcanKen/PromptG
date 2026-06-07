@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import { CATEGORIES } from "@/lib/constants";
-import { EXPANDED_ATOMS } from "@/lib/seed/expanded-atoms";
+import {
+  EXPANDED_ANIME_CHARACTER_ATOMS,
+  EXPANDED_ATOMS,
+} from "@/lib/seed/expanded-atoms";
 import { SEED_ATOMS } from "@/lib/seed/seed-atoms";
 import {
   CATEGORY_PREVIEW_TEMPLATES,
@@ -24,7 +27,7 @@ describe("atom preview prompt compiler", () => {
   it("compiles every approved atom into a provider-ready preview prompt", () => {
     const prompts = allAtoms.map((atom) => buildAtomPreviewPrompt(atom));
 
-    expect(allAtoms).toHaveLength(785);
+    expect(allAtoms).toHaveLength(785 + EXPANDED_ANIME_CHARACTER_ATOMS.length);
     expect(new Set(allAtoms.map((atom) => atom.category))).toHaveLength(36);
     expect(prompts.every((prompt) => prompt.includes("Create one square 1:1 image"))).toBe(true);
     expect(prompts.every((prompt) => prompt.includes("Category framing:"))).toBe(true);
@@ -42,6 +45,19 @@ describe("atom preview prompt compiler", () => {
       for (const pattern of forbidden) {
         expect(prompt, `${atom.id} leaked ${pattern}`).not.toMatch(pattern);
       }
+    }
+  });
+
+  it("requires female subjects and rejects male drift whenever a person appears", () => {
+    for (const atom of allAtoms) {
+      const prompt = buildAtomPreviewPrompt(atom);
+
+      expect(prompt, `${atom.id} is missing the adult female subject policy`).toContain(
+        "every visible person must be a clearly adult female original ACG character",
+      );
+      expect(prompt, `${atom.id} is missing the male-subject guard`).toContain(
+        "No male or masculine-presenting subjects",
+      );
     }
   });
 

@@ -4,14 +4,16 @@ import { parseAtomPreviewArgs } from "../src/lib/gemini/atom-preview-generator";
 import { validateAtomPreviews } from "../src/lib/gemini/atom-preview-validation";
 
 async function main() {
-  const options = parseAtomPreviewArgs(process.argv.slice(2));
-  const result = await validateAtomPreviews(options);
+  const rawArgs = process.argv.slice(2);
+  const existingOnly = rawArgs.includes("--existing-only");
+  const options = parseAtomPreviewArgs(rawArgs.filter((arg) => arg !== "--existing-only"));
+  const scopedResult = await validateAtomPreviews({ ...options, existingOnly });
 
-  console.log(`Checked: ${result.checked.length}`);
-  console.log(`Manifest: ${result.manifestPath}`);
+  console.log(`Checked: ${scopedResult.checked.length}`);
+  console.log(`Manifest: ${scopedResult.manifestPath}`);
 
-  if (result.errors.length > 0) {
-    for (const error of result.errors) {
+  if (scopedResult.errors.length > 0) {
+    for (const error of scopedResult.errors) {
       console.error(error);
     }
     process.exitCode = 1;
