@@ -15,6 +15,7 @@ type Manifest = {
       previewImagePath?: string;
       filePath?: string;
       fileSize?: number;
+      previewPromptHash?: string;
     }
   >;
 };
@@ -76,19 +77,20 @@ export async function validateAtomPreviews(
   const checked: CheckedPreview[] = [];
 
   for (const atom of targets) {
-    const filePath = path.join(outputDir, `${atom.id}.png`);
-    const previewImagePath = `/api/uploads/atom-previews/${atom.id}.png`;
+    const entry = manifest.atoms?.[atom.id];
+    const filePath = entry?.filePath ?? path.join(outputDir, `${atom.id}.png`);
+    const previewImagePath = entry?.previewImagePath ?? `/api/uploads/atom-previews/${atom.id}.png`;
     const data = await fs.readFile(filePath).catch(() => null);
 
     if (!data) {
-      errors.push(`${atom.id}.png 不存在`);
+      errors.push(`${path.relative(outputDir, filePath)} 不存在`);
     } else if (data.byteLength === 0) {
-      errors.push(`${atom.id}.png 是空檔案`);
+      errors.push(`${path.relative(outputDir, filePath)} 是空檔案`);
     } else {
       try {
         const dimensions = readPngDimensions(data);
         if (dimensions.width < 1 || dimensions.height < 1) {
-          errors.push(`${atom.id}.png 圖片尺寸不合法`);
+          errors.push(`${path.relative(outputDir, filePath)} 圖片尺寸不合法`);
         } else {
           checked.push({
             atomId: atom.id,
@@ -100,11 +102,10 @@ export async function validateAtomPreviews(
         }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        errors.push(`${atom.id}.png 無法 decode：${message}`);
+        errors.push(`${path.relative(outputDir, filePath)} 無法 decode：${message}`);
       }
     }
 
-    const entry = manifest.atoms?.[atom.id];
     if (!entry) {
       errors.push(`manifest 缺少 ${atom.id}`);
       continue;

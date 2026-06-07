@@ -143,6 +143,7 @@ describe("ensureExpandedAtoms", () => {
 
   it("replaces old weak templated app-owned persona metadata without touching arbitrary user edits", async () => {
     const { db } = installInMemoryDb();
+    const outputDir = await makeTempDir();
 
     const now = "2026-06-06T00:00:00.000Z";
     await db.insert(promptAtoms).values({
@@ -150,7 +151,7 @@ describe("ensureExpandedAtoms", () => {
       category: "人設",
       title: "自然通勤人物",
       subtitle: "自然通勤方向的人物氣質基底",
-      previewImagePath: "/api/uploads/atom-previews/library-persona-01.png",
+      previewImagePath: "/api/uploads/atom-previews/library-persona-01/0123456789abcdef.png",
       prompt: "natural everyday urban commuter persona, reusable character archetype, adult non-celebrity subject",
       negativePrompt: "celebrity likeness, fixed hairstyle, specific brand identity, full outfit overreach",
       priority: "medium",
@@ -161,7 +162,7 @@ describe("ensureExpandedAtoms", () => {
       updatedAt: now,
     });
 
-    await ensureExpandedAtoms();
+    await ensureExpandedAtoms({ generatedManifestPath: path.join(outputDir, "missing-manifest.json") });
 
     const row = await db
       .select()
@@ -171,7 +172,7 @@ describe("ensureExpandedAtoms", () => {
 
     expect(row?.title).toBe("星際戰術指揮官");
     expect(row?.prompt).not.toContain("reusable character archetype");
-    expect(row?.previewImagePath).toBe("/api/uploads/atom-previews/library-persona-01.png");
+    expect(row?.previewImagePath).toBe("/api/uploads/atom-previews/library-persona-01/0123456789abcdef.png");
   });
 
   it("backfills generated preview paths only through the explicit expanded contract", async () => {
@@ -181,7 +182,7 @@ describe("ensureExpandedAtoms", () => {
     await ensureExpandedAtoms();
     await ensureExpandedAtoms({
       previewPathsByAtomId: {
-        "library-hair-curtain-bangs": "/api/uploads/atom-previews/library-hair-curtain-bangs.png",
+        "library-hair-curtain-bangs": "/api/uploads/atom-previews/library-hair-curtain-bangs/0123456789abcdef.png",
       },
       previewPathExists: () => true,
     });
@@ -194,15 +195,16 @@ describe("ensureExpandedAtoms", () => {
       .where(eq(promptAtoms.id, "library-hair-curtain-bangs"))
       .get();
 
-    expect(row?.previewImagePath).toBe("/api/uploads/atom-previews/library-hair-curtain-bangs.png");
+    expect(row?.previewImagePath).toBe("/api/uploads/atom-previews/library-hair-curtain-bangs/0123456789abcdef.png");
   });
 
   it("loads generated preview paths from a production manifest for app bootstrap", async () => {
     const { db } = installInMemoryDb();
     const outputDir = await makeTempDir();
     const manifestPath = path.join(outputDir, "manifest.json");
-    const imagePath = path.join(outputDir, "library-hair-curtain-bangs.png");
+    const imagePath = path.join(outputDir, "library-hair-curtain-bangs", "0123456789abcdef.png");
 
+    await fs.mkdir(path.dirname(imagePath), { recursive: true });
     await fs.writeFile(imagePath, Buffer.from("generated image"));
     await fs.writeFile(
       manifestPath,
@@ -214,7 +216,7 @@ describe("ensureExpandedAtoms", () => {
           "library-hair-curtain-bangs": {
             atomId: "library-hair-curtain-bangs",
             status: "generated",
-            previewImagePath: "/api/uploads/atom-previews/library-hair-curtain-bangs.png",
+            previewImagePath: "/api/uploads/atom-previews/library-hair-curtain-bangs/0123456789abcdef.png",
             filePath: imagePath,
             fileSize: 15,
           },
@@ -233,15 +235,16 @@ describe("ensureExpandedAtoms", () => {
       .where(eq(promptAtoms.id, "library-hair-curtain-bangs"))
       .get();
 
-    expect(row?.previewImagePath).toBe("/api/uploads/atom-previews/library-hair-curtain-bangs.png");
+    expect(row?.previewImagePath).toBe("/api/uploads/atom-previews/library-hair-curtain-bangs/0123456789abcdef.png");
   });
 
   it("backfills generated preview paths for app-owned seed atoms without changing seed text fields", async () => {
     const { db } = installInMemoryDb();
     const outputDir = await makeTempDir();
     const manifestPath = path.join(outputDir, "manifest.json");
-    const imagePath = path.join(outputDir, "seed-persona-soft-cinematic.png");
+    const imagePath = path.join(outputDir, "seed-persona-soft-cinematic", "0123456789abcdef.png");
 
+    await fs.mkdir(path.dirname(imagePath), { recursive: true });
     await fs.writeFile(imagePath, Buffer.from("generated seed image"));
     await fs.writeFile(
       manifestPath,
@@ -253,7 +256,7 @@ describe("ensureExpandedAtoms", () => {
           "seed-persona-soft-cinematic": {
             atomId: "seed-persona-soft-cinematic",
             status: "generated",
-            previewImagePath: "/api/uploads/atom-previews/seed-persona-soft-cinematic.png",
+            previewImagePath: "/api/uploads/atom-previews/seed-persona-soft-cinematic/0123456789abcdef.png",
             filePath: imagePath,
             fileSize: 20,
           },
@@ -279,7 +282,7 @@ describe("ensureExpandedAtoms", () => {
       "adult original ACG soft cinematic heroine persona, natural facial presence, gentle editorial portrait base, non-celebrity character identity",
     );
     expect(row?.previewImagePath).toBe(
-      "/api/uploads/atom-previews/seed-persona-soft-cinematic.png",
+      "/api/uploads/atom-previews/seed-persona-soft-cinematic/0123456789abcdef.png",
     );
   });
 });

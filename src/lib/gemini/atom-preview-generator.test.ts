@@ -1,15 +1,16 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
 import {
   ATOM_PREVIEW_MODEL,
-  buildAtomPreviewPrompt,
   parseAtomPreviewArgs,
   runAtomPreviewGeneration,
   selectAtomPreviewTargets,
 } from "@/lib/gemini/atom-preview-generator";
+import { buildAtomPreviewPrompt } from "@/lib/gemini/atom-preview-prompt-compiler";
 import { getCategoryTargetTotal, MAIN_SCOPE_CATEGORY_TARGETS } from "@/lib/seed/expanded-atom-targets";
 import { EXPANDED_HAIR_ATOMS } from "@/lib/seed/expanded-atoms";
 
@@ -44,17 +45,17 @@ describe("atom preview generator", () => {
   it("builds a provider-agnostic preview prompt with the hair-specific instruction", () => {
     const prompt = buildAtomPreviewPrompt(EXPANDED_HAIR_ATOMS[1]);
 
-    expect(prompt).toContain("Create one square 1:1 image that previews a single visual concept");
-    expect(prompt).toContain("Title: 八字瀏海");
-    expect(prompt).toContain("Meaning to preserve: curtain bangs");
-    expect(prompt).toContain("2.5D semi-realistic anime key visual");
-    expect(prompt).toContain("Eastern ACG aesthetic");
+    expect(prompt).toContain("Create one square 1:1 image that demonstrates one visual concept");
+    expect(prompt).toContain("Concept title: 八字瀏海");
+    expect(prompt).toContain("Concept meaning: curtain bangs");
+    expect(prompt).toContain("2.5D semi-realistic ACG illustration");
+    expect(prompt).toContain("live-action-feeling anime character photography");
     expect(prompt).toContain("adult original ACG character");
     expect(prompt).toContain("No celebrity likeness");
     expect(prompt).toContain("hair design portrait");
     expect(prompt).not.toContain("contemporary East Asian photography");
     expect(prompt).not.toContain("PromptG");
-    expect(prompt).not.toContain("atom");
+    expect(prompt).not.toMatch(/\batom\b/i);
     expect(prompt).not.toContain("library card");
   });
 
@@ -73,7 +74,7 @@ describe("atom preview generator", () => {
     const prompt = buildAtomPreviewPrompt(target);
 
     expect(prompt).toContain("environment concept image");
-    expect(prompt).toContain("the location must be the main subject");
+    expect(prompt).toContain("the named location is the main subject");
     expect(prompt).toContain("People are optional");
     expect(prompt).not.toContain("PromptG");
     expect(prompt).not.toContain("atom");
@@ -99,6 +100,17 @@ describe("atom preview generator", () => {
     expect(parseAtomPreviewArgs(["--dry-run", "--all-v2"])).toMatchObject({
       dryRun: true,
       scope: "v2",
+    });
+  });
+
+  it("parses per-category dry-run sampling", () => {
+    expect(parseAtomPreviewArgs(["--dry-run", "--sample-per-category"])).toMatchObject({
+      dryRun: true,
+      samplePerCategory: 1,
+    });
+    expect(parseAtomPreviewArgs(["--dry-run", "--sample-per-category=2"])).toMatchObject({
+      dryRun: true,
+      samplePerCategory: 2,
     });
   });
 
@@ -140,9 +152,31 @@ describe("atom preview generator", () => {
     await expect(fs.stat(path.join(outputDir, "manifest.json"))).rejects.toMatchObject({ code: "ENOENT" });
   });
 
+  it("can dry-run one preview prompt sample per category without calling the provider", async () => {
+    const outputDir = await makeTempDir();
+    const generate = vi.fn().mockRejectedValue(new Error("dry-run should not call provider"));
+
+    const result = await runAtomPreviewGeneration({
+      dryRun: true,
+      samplePerCategory: 1,
+      outputDir,
+      client: { generate },
+    });
+
+    expect(generate).not.toHaveBeenCalled();
+    expect(result.planned).toHaveLength(36);
+    expect(new Set(result.planned.map((item) => item.category))).toHaveLength(36);
+    expect(result.planned.every((item) => item.prompt.includes("Category framing:"))).toBe(true);
+    await expect(fs.stat(path.join(outputDir, "manifest.json"))).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
   it("skips existing preview files unless force is enabled", async () => {
     const outputDir = await makeTempDir();
-    const existingPath = path.join(outputDir, "library-hair-curtain-bangs.png");
+    const target = selectAtomPreviewTargets({ ids: ["library-hair-curtain-bangs"] })[0];
+    const prompt = buildAtomPreviewPrompt(target);
+    const promptHash = createHash("sha256").update(prompt).digest("hex").slice(0, 16);
+    const existingPath = path.join(outputDir, "library-hair-curtain-bangs", `${promptHash}.png`);
+    await fs.mkdir(path.dirname(existingPath), { recursive: true });
     await fs.writeFile(existingPath, Buffer.from("existing"));
     const generate = vi.fn();
 
@@ -159,6 +193,16 @@ describe("atom preview generator", () => {
     const manifest = JSON.parse(await fs.readFile(path.join(outputDir, "manifest.json"), "utf8"));
     expect(manifest.model).toBe(ATOM_PREVIEW_MODEL);
     expect(manifest.atoms["library-hair-curtain-bangs"].status).toBe("skipped_existing");
+    expect(manifest.atoms["library-hair-curtain-bangs"].sourcePromptHash).toHaveLength(16);
+    expect(manifest.atoms["library-hair-curtain-bangs"].previewPromptHash).toBe(promptHash);
+    expect(manifest.atoms["library-hair-curtain-bangs"].previewPrompt).toContain("Concept title: 八字瀏海");
+    expect(manifest.atoms["library-hair-curtain-bangs"].provider).toBe("GPT-Image-2");
+    expect(manifest.atoms["library-hair-curtain-bangs"].generatedAt).toEqual(expect.any(String));
+    expect(manifest.atoms["library-hair-curtain-bangs"].qaStatus).toBe("pending_review");
+    expect(manifest.atoms["library-hair-curtain-bangs"].qaNotes).toBe("");
+    expect(manifest.atoms["library-hair-curtain-bangs"].previewImagePath).toBe(
+      `/api/uploads/atom-previews/library-hair-curtain-bangs/${promptHash}.png`,
+    );
   });
 
   it("writes generated images, manifest entries, and JSONL logs without storing secrets", async () => {
@@ -186,12 +230,20 @@ describe("atom preview generator", () => {
       }),
     );
 
-    const image = await fs.readFile(path.join(outputDir, "library-hair-curtain-bangs.png"), "utf8");
+    const manifest = JSON.parse(await fs.readFile(path.join(outputDir, "manifest.json"), "utf8"));
+    const entry = manifest.atoms["library-hair-curtain-bangs"];
+    const image = await fs.readFile(entry.filePath, "utf8");
     const manifestText = await fs.readFile(path.join(outputDir, "manifest.json"), "utf8");
     const logText = await fs.readFile(path.join(outputDir, "logs", "test-run.jsonl"), "utf8");
 
     expect(image).toBe("generated");
     expect(manifestText).toContain("library-hair-curtain-bangs");
+    expect(entry.filePath).toMatch(/library-hair-curtain-bangs\/[a-f0-9]{16}\.png$/);
+    expect(entry.previewImagePath).toMatch(
+      /^\/api\/uploads\/atom-previews\/library-hair-curtain-bangs\/[a-f0-9]{16}\.png$/,
+    );
+    expect(entry.previewPrompt).toContain("Category framing:");
+    expect(entry.generatedAt).toEqual(expect.any(String));
     expect(logText).toContain("generated");
     expect(`${manifestText}\n${logText}`).not.toContain("SECRET_SHOULD_NOT_BE_WRITTEN");
   });
@@ -224,5 +276,31 @@ describe("atom preview generator", () => {
     expect(sleep).toHaveBeenCalledWith(1000);
     expect(manifest.atoms["library-hair-curtain-bangs"].status).toBe("generated");
     expect(manifest.atoms["library-hair-curtain-bangs"].attempts).toBe(2);
+  });
+
+  it("records failed provider attempts as regenerate QA candidates without generated files", async () => {
+    const outputDir = await makeTempDir();
+    const providerError = new Error("provider model unavailable") as Error & { status: number };
+    providerError.status = 503;
+    const generate = vi.fn().mockRejectedValue(providerError);
+    const sleep = vi.fn().mockResolvedValue(undefined);
+
+    const result = await runAtomPreviewGeneration({
+      category: "髮型",
+      ids: ["library-hair-curtain-bangs"],
+      outputDir,
+      client: { generate },
+      maxRetries: 1,
+      sleep,
+    });
+
+    const manifest = JSON.parse(await fs.readFile(path.join(outputDir, "manifest.json"), "utf8"));
+    const entry = manifest.atoms["library-hair-curtain-bangs"];
+
+    expect(result.failed).toEqual([{ atomId: "library-hair-curtain-bangs", error: "provider model unavailable" }]);
+    expect(entry.status).toBe("failed");
+    expect(entry.qaStatus).toBe("regenerate");
+    expect(entry.qaNotes).toContain("Provider request failed");
+    await expect(fs.stat(entry.filePath)).rejects.toMatchObject({ code: "ENOENT" });
   });
 });

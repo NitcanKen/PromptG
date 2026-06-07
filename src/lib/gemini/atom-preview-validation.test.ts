@@ -25,7 +25,9 @@ describe("atom preview validation", () => {
   it("validates existing PNG previews and matching manifest entries", async () => {
     const outputDir = await makeTempDir();
     const atomId = "library-hair-curtain-bangs";
-    const filePath = path.join(outputDir, `${atomId}.png`);
+    const promptHash = "0123456789abcdef";
+    const filePath = path.join(outputDir, atomId, `${promptHash}.png`);
+    await fs.mkdir(path.dirname(filePath), { recursive: true });
     await fs.writeFile(filePath, oneByOnePng);
     await fs.writeFile(
       path.join(outputDir, "manifest.json"),
@@ -37,7 +39,7 @@ describe("atom preview validation", () => {
           [atomId]: {
             atomId,
             status: "generated",
-            previewImagePath: `/api/uploads/atom-previews/${atomId}.png`,
+            previewImagePath: `/api/uploads/atom-previews/${atomId}/${promptHash}.png`,
             filePath,
             fileSize: oneByOnePng.byteLength,
           },
@@ -56,7 +58,7 @@ describe("atom preview validation", () => {
       atomId,
       width: 1,
       height: 1,
-      previewImagePath: `/api/uploads/atom-previews/${atomId}.png`,
+      previewImagePath: `/api/uploads/atom-previews/${atomId}/${promptHash}.png`,
     });
     expect(result.errors).toEqual([]);
   });

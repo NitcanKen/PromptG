@@ -1,17 +1,22 @@
 import fs from "node:fs/promises";
+import { createHash } from "node:crypto";
 import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
 import { atomInputSchema, type AtomInput } from "@/lib/validation/atoms";
+import { CATEGORIES } from "@/lib/constants";
 import { EXPANDED_ATOMS } from "@/lib/seed/expanded-atoms";
 import {
   isFullV2Category,
   isMainScopeCategory,
 } from "@/lib/seed/expanded-atom-targets";
 import { SEED_ATOMS } from "@/lib/seed/seed-atoms";
+import { buildAtomPreviewPrompt } from "@/lib/gemini/atom-preview-prompt-compiler";
 
-export const ATOM_PREVIEW_MODEL = "GPT-Image-2";
+export { buildAtomPreviewPrompt } from "@/lib/gemini/atom-preview-prompt-compiler";
+
+export const ATOM_PREVIEW_MODEL = "gpt-image-2";
 export const DEFAULT_ATOM_PREVIEW_BASE_URL = "https://token.mmh1.top";
 export const DEFAULT_ATOM_PREVIEW_OUTPUT_DIR = path.join(
   process.cwd(),
@@ -49,6 +54,7 @@ export type AtomPreviewCliOptions = {
   scope?: AtomPreviewScope;
   category?: string;
   ids?: string[];
+  samplePerCategory?: number;
   limit?: number;
   force?: boolean;
   outputDir?: string;
@@ -72,9 +78,17 @@ type ManifestAtomEntry = {
   title: string;
   status: "generated" | "skipped_existing" | "failed";
   attempts: number;
+  sourcePromptHash: string;
+  previewPromptHash: string;
+  previewPrompt: string;
+  provider: string;
+  model: string;
   previewImagePath: string;
   filePath: string;
   fileSize: number;
+  generatedAt?: string;
+  qaStatus: "pending_review" | "approved" | "regenerate" | "compiler-fix-required" | "do-not-generate";
+  qaNotes: string;
   mimeType?: AtomPreviewMimeType;
   providerText?: string;
   error?: string;
@@ -162,6 +176,19 @@ export function parseAtomPreviewArgs(argv: string[]): AtomPreviewCliOptions {
       options.ids = splitIds(readValue("--ids"));
     } else if (arg.startsWith("--ids=")) {
       options.ids = splitIds(arg.slice("--ids=".length));
+    } else if (arg === "--sample-per-category") {
+      const next = argv[index + 1];
+      if (next && !next.startsWith("--")) {
+        options.samplePerCategory = parsePositiveInteger(next, "--sample-per-category");
+        index += 1;
+      } else {
+        options.samplePerCategory = 1;
+      }
+    } else if (arg.startsWith("--sample-per-category=")) {
+      options.samplePerCategory = parsePositiveInteger(
+        arg.slice("--sample-per-category=".length),
+        "--sample-per-category",
+      );
     } else if (arg === "--limit") {
       options.limit = parsePositiveInteger(readValue("--limit"), "--limit");
     } else if (arg.startsWith("--limit=")) {
@@ -187,7 +214,7 @@ export function parseAtomPreviewArgs(argv: string[]): AtomPreviewCliOptions {
 }
 
 export function selectAtomPreviewTargets(
-  options: Pick<AtomPreviewCliOptions, "scope" | "category" | "ids" | "limit">,
+  options: Pick<AtomPreviewCliOptions, "scope" | "category" | "ids" | "samplePerCategory" | "limit">,
 ) {
   const ids = new Set(options.ids ?? []);
   let atoms = getApprovedPreviewAtoms();
@@ -204,6 +231,10 @@ export function selectAtomPreviewTargets(
 
   if (ids.size > 0) {
     atoms = atoms.filter((atom) => ids.has(atom.id));
+  }
+
+  if (options.samplePerCategory) {
+    atoms = selectSamplesPerCategory(atoms, options.samplePerCategory);
   }
 
   if (options.limit) {
@@ -229,84 +260,90 @@ function normalizeAtomPreviewTarget(atom: { id: string } & Partial<AtomInput>) {
   };
 }
 
-export function buildAtomPreviewPrompt(atom: AtomPreviewTarget) {
-  const visualVariation = getVisualVariation(atom.id);
-  const displayCategory = atom.category === "Negative Atom" ? "Negative constraint" : atom.category;
+function selectSamplesPerCategory(atoms: AtomPreviewTarget[], perCategory: number) {
+  assertPositiveInteger(perCategory, "--sample-per-category");
+  const selected: AtomPreviewTarget[] = [];
 
-  return `Create one square 1:1 image that previews a single visual concept.
-The result must be immediately readable as the exact concept below, even at thumbnail size.
-Category: ${displayCategory}
-Title: ${atom.title}
-Description: ${atom.subtitle}
-Meaning to preserve: ${atom.prompt}
+  for (const category of CATEGORIES) {
+    let count = 0;
+    for (const atom of atoms) {
+      if (atom.category !== category) {
+        continue;
+      }
+      selected.push(atom);
+      count += 1;
+      if (count >= perCategory) {
+        break;
+      }
+    }
+  }
 
-Visual direction:
-- 2.5D semi-realistic anime key visual, realistic ACG rendering, polished illustration quality.
-- Eastern ACG aesthetic by default: refined face design, tasteful styling, expressive lighting, clean silhouette, premium character-art finish.
-- If the concept explicitly requires Western, European, American, non-Eastern, or non-human content, follow that concept while keeping the same semi-realistic ACG rendering.
-- Use an adult original ACG character only when a person is needed.
-- No celebrity likeness, no existing copyrighted character, no brand logo, no watermark, no random text.
-- Avoid stock-photo realism, passport-photo lighting, bland commuter portrait energy, generic AI glamour, and unrelated decorative clutter.
-- Do not replace the concept with a generic beautiful person. The selected title and meaning must drive the image.
-- Controlled visual variation: ${visualVariation}.
-
-Category rendering rule:
-${getCategoryPreviewInstruction(atom)}
-
-Clean composition. Strong subject readability. No extra concepts.`;
+  return selected;
 }
 
-function getCategoryPreviewInstruction(atom: AtomPreviewTarget) {
-  if (atom.id.startsWith("library-persona-addon-") || atom.category === "人設") {
-    return "Create a character design portrait with a distinctive silhouette, readable costume direction, recognizable role aura, and clearly adult original ACG character presence. Do not make the subject look underage.";
-  }
-
-  if (atom.category === "髮型") {
-    return "Create a hair design portrait or upper-body crop focused on the hair shape. Keep outfit and background secondary.";
-  }
-
-  if (["上裝", "下裝", "鞋履", "配飾", "道具", "妝容", "材質"].includes(atom.category)) {
-    return "Create a fashion or prop design image where the selected item is the main subject. The character exists only to demonstrate fit, scale, texture, and styling.";
-  }
-
-  if (["場景", "場景細節", "時間 / 季節 / 天氣", "光影", "色彩系統"].includes(atom.category)) {
-    return "Create an environment concept image; the location must be the main subject, or the lighting, weather, or color system must be the main subject when that is the selected concept. People are optional and must not steal focus.";
-  }
-
-  if (["鏡頭角度", "鏡頭質感", "景別", "構圖規則"].includes(atom.category)) {
-    return "Create a cinematic composition sample where camera placement, framing, lens feel, or composition rule is the main subject.";
-  }
-
-  if (["畫面影響", "版式設計", "文本元素", "平台媒介", "後期處理"].includes(atom.category)) {
-    return "Create a graphic preview where the medium, layout, overlay, or post-processing effect is the main subject. Use placeholder shapes instead of readable random text unless the concept is no-text.";
-  }
-
-  if (["主體數量 / 人物關係", "姿態", "手部動作", "身體構圖", "互動行為", "表情", "視線", "臉部特徵"].includes(atom.category)) {
-    return "Create a character pose or expression study where the body relationship, gesture, expression, gaze, or facial feature is the main subject.";
-  }
-
-  return "Create a focused visual study where the named concept is the main subject and every visible detail supports it.";
+function shortHash(value: string) {
+  return createHash("sha256").update(value).digest("hex").slice(0, 16);
 }
 
-function getVisualVariation(atomId: string) {
-  const variations = [
-    "moonlit character-card rim light, clean graphic backdrop, crisp silhouette",
-    "soft neon anime portrait lighting, shallow depth, high character appeal",
-    "painterly studio backdrop, collectible ACG profile-card composition",
-    "cinematic school-uniform-adjacent styling, clean anime-realism face rendering",
-    "fantasy editorial character portrait lighting, refined East Asian ACG taste",
-    "urban night character-card crop, stylized bokeh, strong role aura",
-    "warm indoor anime portrait light, expressive eyes, polished semi-real texture",
-    "low-saturation filmic ACG portrait grade, delicate line-and-skin rendering",
-  ];
-  const checksum = Array.from(atomId).reduce((sum, char) => sum + char.charCodeAt(0), 0);
-  return variations[checksum % variations.length];
+function getSourcePromptHash(atom: AtomPreviewTarget) {
+  return shortHash(
+    JSON.stringify({
+      category: atom.category,
+      title: atom.title,
+      subtitle: atom.subtitle,
+      prompt: atom.prompt,
+      negativePrompt: atom.negativePrompt,
+    }),
+  );
 }
 
-function getPreviewPaths(outputDir: string, atomId: string) {
+function getPreviewPaths(outputDir: string, atomId: string, previewPromptHash: string) {
   return {
-    outputPath: path.join(outputDir, `${atomId}.png`),
-    previewImagePath: `/api/uploads/atom-previews/${atomId}.png`,
+    outputPath: path.join(outputDir, atomId, `${previewPromptHash}.png`),
+    previewImagePath: `/api/uploads/atom-previews/${atomId}/${previewPromptHash}.png`,
+  };
+}
+
+function buildManifestEntry(
+  atom: AtomPreviewTarget,
+  params: {
+    status: ManifestAtomEntry["status"];
+    attempts: number;
+    previewPrompt: string;
+    model: string;
+    previewImagePath: string;
+    filePath: string;
+    fileSize: number;
+    updatedAt: string;
+    generatedAt?: string;
+    qaStatus?: ManifestAtomEntry["qaStatus"];
+    qaNotes?: string;
+    mimeType?: AtomPreviewMimeType;
+    providerText?: string;
+    error?: string;
+  },
+): ManifestAtomEntry {
+  return {
+    atomId: atom.id,
+    category: atom.category,
+    title: atom.title,
+    status: params.status,
+    attempts: params.attempts,
+    sourcePromptHash: getSourcePromptHash(atom),
+    previewPromptHash: shortHash(params.previewPrompt),
+    previewPrompt: params.previewPrompt,
+    provider: "GPT-Image-2",
+    model: params.model,
+    previewImagePath: params.previewImagePath,
+    filePath: params.filePath,
+    fileSize: params.fileSize,
+    generatedAt: params.generatedAt,
+    qaStatus: params.qaStatus ?? "pending_review",
+    qaNotes: params.qaNotes ?? "",
+    mimeType: params.mimeType,
+    providerText: params.providerText,
+    error: params.error,
+    updatedAt: params.updatedAt,
   };
 }
 
@@ -612,14 +649,15 @@ export async function runAtomPreviewGeneration(
   const sleep = options.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
   const targets = selectAtomPreviewTargets(options);
   const planned = targets.map((atom) => {
-    const paths = getPreviewPaths(outputDir, atom.id);
+    const prompt = buildAtomPreviewPrompt(atom);
+    const paths = getPreviewPaths(outputDir, atom.id, shortHash(prompt));
     return {
       atomId: atom.id,
       category: atom.category,
       title: atom.title,
       outputPath: paths.outputPath,
       previewImagePath: paths.previewImagePath,
-      prompt: buildAtomPreviewPrompt(atom),
+      prompt,
     };
   });
 
@@ -649,23 +687,24 @@ export async function runAtomPreviewGeneration(
 
   await runWithConcurrency(targets, concurrency, async (atom) => {
     const prompt = buildAtomPreviewPrompt(atom);
-    const { outputPath, previewImagePath } = getPreviewPaths(outputDir, atom.id);
+    const { outputPath, previewImagePath } = getPreviewPaths(outputDir, atom.id, shortHash(prompt));
     const now = new Date().toISOString();
 
     if (!options.force && (await fileExists(outputPath))) {
       const size = await fileSize(outputPath);
-      manifest.atoms[atom.id] = {
-        atomId: atom.id,
-        category: atom.category,
-        title: atom.title,
+      const previousGeneratedAt = manifest.atoms[atom.id]?.generatedAt;
+      manifest.atoms[atom.id] = buildManifestEntry(atom, {
         status: "skipped_existing",
         attempts: 0,
+        previewPrompt: prompt,
+        model,
         previewImagePath,
         filePath: outputPath,
         fileSize: size,
+        generatedAt: previousGeneratedAt ?? now,
         mimeType: "image/png",
         updatedAt: now,
-      };
+      });
       skipped.push(atom.id);
       await writeManifest(manifestPath, manifest);
       await appendLog(logPath, {
@@ -687,22 +726,24 @@ export async function runAtomPreviewGeneration(
         },
         { maxRetries, sleep },
       );
+      await fs.mkdir(path.dirname(outputPath), { recursive: true });
       const writtenMimeType = await writePreviewImage(outputPath, result);
       const size = await fileSize(outputPath);
+      const generatedAt = new Date().toISOString();
 
-      manifest.atoms[atom.id] = {
-        atomId: atom.id,
-        category: atom.category,
-        title: atom.title,
+      manifest.atoms[atom.id] = buildManifestEntry(atom, {
         status: "generated",
         attempts,
+        previewPrompt: prompt,
+        model,
         previewImagePath,
         filePath: outputPath,
         fileSize: size,
+        generatedAt,
         mimeType: writtenMimeType,
         providerText: result.providerText,
-        updatedAt: new Date().toISOString(),
-      };
+        updatedAt: generatedAt,
+      });
       generated.push(atom.id);
       await writeManifest(manifestPath, manifest);
       await appendLog(logPath, {
@@ -713,18 +754,19 @@ export async function runAtomPreviewGeneration(
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      manifest.atoms[atom.id] = {
-        atomId: atom.id,
-        category: atom.category,
-        title: atom.title,
+      manifest.atoms[atom.id] = buildManifestEntry(atom, {
         status: "failed",
         attempts: maxRetries,
+        previewPrompt: prompt,
+        model,
         previewImagePath,
         filePath: outputPath,
         fileSize: 0,
         error: message,
+        qaStatus: "regenerate",
+        qaNotes: "Provider request failed before an image was generated; retry only after provider availability is fixed.",
         updatedAt: new Date().toISOString(),
-      };
+      });
       failed.push({ atomId: atom.id, error: message });
       await writeManifest(manifestPath, manifest);
       await appendLog(logPath, {

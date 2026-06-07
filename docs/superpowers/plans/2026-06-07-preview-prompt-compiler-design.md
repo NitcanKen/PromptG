@@ -827,7 +827,15 @@ Recommended rollout:
 - [x] Current atom count verified: 785.
 - [x] Prompt quality audit report found and reviewed.
 - [x] Design draft created.
-- [ ] User approves design draft.
-- [ ] Compiler implementation starts.
-- [ ] Dry-run prompt review starts.
-- [ ] Sample image generation starts.
+- [x] P0 dry-run compiler scope approved by implementation request on 2026-06-07.
+- [x] Compiler implementation complete: 785 approved atoms can compile into provider-ready preview prompts without calling an image provider.
+- [x] All 36 categories have explicit category-specific preview templates.
+- [x] Dry-run prompt review tooling available for specified IDs and per-category samples.
+- [x] P0 tests added for internal term filtering, 36-template coverage, Negative Atom / size / quality handling, dry-run provider isolation, and banned global wording.
+- [x] Fresh verification complete on 2026-06-07 HKT: `npm test`, `npm run lint`, `npm run build`.
+- [x] CLI dry-run smoke test complete: `npm run generate:atom-previews -- --dry-run --sample-per-category` planned 36 preview prompt samples and did not generate images.
+- [x] P1 sample generation started on 2026-06-07 HKT with 67 controlled sample prompts and no full-library generation.
+- [x] P1 provider model id corrected from `GPT-Image-2` to `gpt-image-2` after the uppercase id returned HTTP 503 `model_not_found`.
+- [x] P1 image generation complete: 67 sample images exist, no full-library generation was performed.
+- [x] P1 QA complete: 67 approved, 0 regenerate, 0 compiler-fix-required, 0 do-not-generate.
+- [x] P1 QA report written: `docs/reports/2026-06-07-preview-prompt-p1-qa-report.md`.

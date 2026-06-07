@@ -33,7 +33,7 @@ type EnsureExpandedAtomsOptions = {
 function isGeneratedAtomPreviewPath(atomId: string, previewImagePath: string) {
   const escapedId = atomId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return new RegExp(
-    `^${GENERATED_ATOM_PREVIEW_ROUTE_PREFIX}${escapedId}\\.(png|jpe?g|webp)$`,
+    `^${GENERATED_ATOM_PREVIEW_ROUTE_PREFIX}${escapedId}(?:\\.(png|jpe?g|webp)|/[a-f0-9]{16,64}\\.(png|jpe?g|webp))$`,
     "i",
   ).test(previewImagePath);
 }
