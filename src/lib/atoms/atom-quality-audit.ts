@@ -64,6 +64,7 @@ const vagueOnlyTerms = new Set([
 
 const categoryKeywords: Partial<Record<Category, RegExp>> = {
   人設: /\b(persona|identity|role|presence|aura|character|commander|idol|engineer|artist|worker|keeper|oracle|detective|guardian|model|curator|witch|knight)\b/i,
+  動漫角色: /\b(anime character|anime|character|from)\b/i,
   臉部特徵: /\b(face|facial|cheek|nose|eye shape|eyebrow|lip|jaw|skin|pores|bone structure)\b/i,
   髮型: /\b(hair|hairstyle|bangs|fringe|ponytail|bun|buns|bob|braid|waves|curls|part|strands|updo)\b/i,
   表情: /\b(expression|smile|laugh|mouth|emotion|grin|calm|shy|confident|surprised)\b/i,
@@ -202,10 +203,11 @@ export function auditAtoms(atoms: AuditedAtom[]) {
     }
 
     if (
-      (!hasCjk(record.title) && !isAnimeCharacterRecord(record)) ||
-      !hasCjk(record.subtitle) ||
-      !record.tags.every(hasCjk) ||
-      !hasCjk(record.notes)
+      !isAnimeCharacterRecord(record) &&
+      (!hasCjk(record.title) ||
+        !hasCjk(record.subtitle) ||
+        !record.tags.every(hasCjk) ||
+        !hasCjk(record.notes))
     ) {
       record.flags.push("metadata-risk");
       record.flagDetails.push("UI-facing metadata should remain Traditional Chinese.");

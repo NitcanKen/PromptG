@@ -15,7 +15,7 @@ const atomBaseSchema = z.object({
   negativePrompt: z.string().trim().max(4000),
   priority: promptPrioritySchema,
   lockPolicy: lockPolicySchema,
-  tags: z.array(z.string().trim().min(1).max(24)).max(12),
+  tags: z.array(z.string().trim().min(1).max(80)).max(12),
   notes: z.string().trim().max(4000),
 });
 

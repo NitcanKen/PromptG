@@ -28,7 +28,7 @@ describe("atom preview prompt compiler", () => {
     const prompts = allAtoms.map((atom) => buildAtomPreviewPrompt(atom));
 
     expect(allAtoms).toHaveLength(785 + EXPANDED_ANIME_CHARACTER_ATOMS.length);
-    expect(new Set(allAtoms.map((atom) => atom.category))).toHaveLength(36);
+    expect(new Set(allAtoms.map((atom) => atom.category))).toHaveLength(37);
     expect(prompts.every((prompt) => prompt.includes("Create one square 1:1 image"))).toBe(true);
     expect(prompts.every((prompt) => prompt.includes("Category framing:"))).toBe(true);
   });
@@ -52,9 +52,15 @@ describe("atom preview prompt compiler", () => {
     for (const atom of allAtoms) {
       const prompt = buildAtomPreviewPrompt(atom);
 
-      expect(prompt, `${atom.id} is missing the adult female subject policy`).toContain(
-        "every visible person must be a clearly adult female original ACG character",
-      );
+      if (atom.category === "動漫角色") {
+        expect(prompt, `${atom.id} is missing the anime character identity policy`).toContain(
+          "The character identity must follow the concept title and source series",
+        );
+      } else {
+        expect(prompt, `${atom.id} is missing the adult female subject policy`).toContain(
+          "every visible person must be a clearly adult female original ACG character",
+        );
+      }
       expect(prompt, `${atom.id} is missing the male-subject guard`).toContain(
         "No male or masculine-presenting subjects",
       );

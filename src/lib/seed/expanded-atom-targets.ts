@@ -4,6 +4,7 @@ export type AtomTargetCounts = Partial<Record<Category, number>>;
 
 export const MAIN_SCOPE_CATEGORY_TARGETS = {
   人設: 80,
+  動漫角色: 273,
   臉部特徵: 30,
   髮型: 40,
   表情: 30,

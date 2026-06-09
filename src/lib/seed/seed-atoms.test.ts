@@ -7,9 +7,11 @@ function hasCjk(text: string) {
 }
 
 describe("seed atoms", () => {
-  it("includes at least 36 local seed atoms covering every v2 category", () => {
+  it("includes at least 36 local seed atoms covering every non-expansion category", () => {
     expect(SEED_ATOMS.length).toBeGreaterThanOrEqual(36);
-    expect(new Set(SEED_ATOMS.map((atom) => atom.category))).toEqual(new Set(CATEGORIES));
+    expect(new Set(SEED_ATOMS.map((atom) => atom.category))).toEqual(
+      new Set(CATEGORIES.filter((category) => category !== "動漫角色")),
+    );
     expect(SEED_ATOMS.every((atom) => atom.previewImagePath === "")).toBe(true);
   });
 

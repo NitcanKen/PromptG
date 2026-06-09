@@ -1298,31 +1298,39 @@ function BigSelectorDialog({
                 </Button>
               </div>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="secondary">
-                {isGlobalSearch ? "全部分類搜尋" : `${activeGroup} / ${activeCategory}`}
-              </Badge>
-              <Button variant={tag ? "outline" : "secondary"} size="sm" onClick={() => onTagChange("")}>全部標籤</Button>
-              {visibleTags.map((item) => (
-                <Button key={item} variant={tag === item ? "default" : "outline"} size="sm" onClick={() => onTagChange(item)}>
-                  {item}
-                </Button>
-              ))}
-              {canToggle && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setTagExpansion((current) => ({
-                    scopeKey: tagScopeKey,
-                    expanded: current.scopeKey === tagScopeKey ? !current.expanded : true,
-                  }))}
-                  aria-expanded={tagsExpanded}
-                  aria-label={tagsExpanded ? "收合標籤" : `展開另外 ${hiddenCount} 個標籤`}
-                >
-                  {tagsExpanded ? <ChevronUpIcon data-icon="inline-start" /> : <ChevronDownIcon data-icon="inline-start" />}
-                  {tagsExpanded ? "收合標籤" : `展開 ${hiddenCount}`}
-                </Button>
+            <div
+              className={cn(
+                "rounded-md border bg-background/60 p-2",
+                tagsExpanded ? "max-h-40 overflow-y-auto pr-1" : "max-h-24 overflow-hidden",
               )}
+            >
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="secondary">
+                  {isGlobalSearch ? "全部分類搜尋" : `${activeGroup} / ${activeCategory}`}
+                </Badge>
+                <Button variant={tag ? "outline" : "secondary"} size="sm" onClick={() => onTagChange("")}>全部標籤</Button>
+                {visibleTags.map((item) => (
+                  <Button key={item} variant={tag === item ? "default" : "outline"} size="sm" onClick={() => onTagChange(item)}>
+                    {item}
+                  </Button>
+                ))}
+                {canToggle && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className={tagsExpanded ? "sticky bottom-0 bg-background" : undefined}
+                    onClick={() => setTagExpansion((current) => ({
+                      scopeKey: tagScopeKey,
+                      expanded: current.scopeKey === tagScopeKey ? !current.expanded : true,
+                    }))}
+                    aria-expanded={tagsExpanded}
+                    aria-label={tagsExpanded ? "收合標籤" : `展開另外 ${hiddenCount} 個標籤`}
+                  >
+                    {tagsExpanded ? <ChevronUpIcon data-icon="inline-start" /> : <ChevronDownIcon data-icon="inline-start" />}
+                    {tagsExpanded ? "收合標籤" : `展開 ${hiddenCount}`}
+                  </Button>
+                )}
+              </div>
             </div>
             <div className="min-h-[420px] overflow-visible lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-1">
               {isLoading ? (

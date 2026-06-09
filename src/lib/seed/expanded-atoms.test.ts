@@ -71,7 +71,7 @@ describe("expanded atoms", () => {
     ).toBe(true);
   });
 
-  it("adds every documented anime character as a persona atom with a local preview path", () => {
+  it("adds every documented anime character under the dedicated subject category with source tags", () => {
     expect(EXPANDED_ANIME_CHARACTER_ATOMS).toHaveLength(273);
     expect(EXPANDED_ANIME_CHARACTER_ATOMS.filter((atom) => atom.previewImagePath)).toHaveLength(
       272,
@@ -81,9 +81,12 @@ describe("expanded atoms", () => {
         (atom, index) =>
           atom.id === `library-anime-character-${String(index + 1).padStart(3, "0")}` &&
           atom.source === "anime-character-atoms" &&
-          atom.category === "人設" &&
-          atom.subtitle.startsWith("動漫角色 / ") &&
+          atom.category === "動漫角色" &&
+          atom.subtitle.length > 0 &&
           atom.prompt.includes(atom.title) &&
+          atom.tags.includes("主體") &&
+          atom.tags.includes("動漫角色") &&
+          atom.tags.includes(atom.subtitle) &&
           (atom.previewImagePath === "" ||
             (atom.previewImagePath.startsWith(`/api/uploads/atom-previews/${atom.id}/`) &&
               atom.previewImagePath.endsWith(".jpg"))) &&
@@ -119,8 +122,8 @@ describe("expanded atoms", () => {
       EXPANDED_ATOMS.every(
         (atom) =>
           (hasCjk(atom.title) || atom.source === "anime-character-atoms") &&
-          hasCjk(atom.subtitle) &&
-          atom.tags.every(hasCjk) &&
+          (hasCjk(atom.subtitle) || atom.source === "anime-character-atoms") &&
+          (atom.tags.every(hasCjk) || atom.source === "anime-character-atoms") &&
           hasCjk(atom.notes),
       ),
     ).toBe(true);

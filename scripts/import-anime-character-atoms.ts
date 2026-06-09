@@ -2,6 +2,8 @@ import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 
+import { ANIME_SERIES_TITLE_ZH } from "../src/lib/seed/anime-series-title-zh";
+
 const rankerListId = 1002225;
 const rankerItemsUrl =
   `https://api.ranker.com/lists/${rankerListId}/items?` +
@@ -66,6 +68,15 @@ function imageUrlForDownload(url: string) {
   return parsed.toString();
 }
 
+function displaySeriesTitle(series: string) {
+  const title = ANIME_SERIES_TITLE_ZH[series];
+  if (!title) {
+    throw new Error(`Missing Traditional Chinese anime series title for: ${series}`);
+  }
+
+  return title;
+}
+
 function parseAnimeCharacterDoc(text: string) {
   return text
     .split(/\n+/)
@@ -125,18 +136,20 @@ function matchRankerItem(character: AnimeCharacter, rankerItems: RankerItem[]) {
 }
 
 function atomSource(character: AnimeCharacter, previewImagePath: string) {
+  const displaySeries = displaySeriesTitle(character.series);
+
   return `  {
     id: "${atomId(character.rank)}",
     source: "anime-character-atoms",
-    category: "人設",
+    category: "動漫角色",
     title: ${JSON.stringify(character.name)},
-    subtitle: ${JSON.stringify(`動漫角色 / ${character.series}`)},
+    subtitle: ${JSON.stringify(displaySeries)},
     previewImagePath: ${JSON.stringify(previewImagePath)},
     prompt: ${JSON.stringify(`${character.name}, anime character from ${character.series}`)},
     negativePrompt: "wrong character, unrelated anime character, low quality screenshot, distorted face",
     priority: "reference",
     lockPolicy: "normal",
-    tags: ["人設", "動漫角色"],
+    tags: ${JSON.stringify(["主體", "動漫角色", displaySeries])},
     notes: ${JSON.stringify(`依 docs/anime_char.md 第 ${character.rank} 位新增；預覽圖來源為 Ranker 對應角色圖。`)},
   }`;
 }

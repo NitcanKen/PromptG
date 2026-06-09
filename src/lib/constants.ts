@@ -73,6 +73,15 @@ export const CATEGORY_METADATA = [
     examples: ["柔和電影感少女", "自然日常人像", "清爽編輯感人物"],
   },
   {
+    id: "anime-character",
+    label: "動漫角色",
+    group: "主體",
+    selectionMode: "single",
+    compileOrder: 20,
+    description: "指定既有動漫角色名與作品來源，用於角色參考型 Prompt。",
+    examples: ["Yor Forger", "Mai Sakurajima", "Violet Evergarden"],
+  },
+  {
     id: "face-features",
     label: "臉部特徵",
     group: "主體",

@@ -1,4 +1,4 @@
-export const TAG_COLLAPSED_LIMIT = 36;
+export const TAG_COLLAPSED_LIMIT = 12;
 
 export function getVisibleTags(tags: string[], expanded: boolean) {
   const canToggle = tags.length > TAG_COLLAPSED_LIMIT;

@@ -17,12 +17,21 @@ type CategoryPreviewTemplate = {
 export const GLOBAL_PREVIEW_STYLE =
   "2.5D semi-realistic ACG illustration, live-action-feeling anime character photography when characters are present, premium key visual quality, clean silhouette, strong thumbnail readability, polished lighting. When any person appears, every visible person must be a clearly adult female original ACG character. No male or masculine-presenting subjects, no underage appearance, no celebrity likeness, no brand logos, no copyrighted characters, no watermark, no random text.";
 
+export const ANIME_CHARACTER_PREVIEW_STYLE =
+  "Square anime character reference preview with strong thumbnail readability, clean silhouette, polished lighting, and clear source-character identity. The character identity must follow the concept title and source series. No male or masculine-presenting subjects, no unrelated replacement character, no distorted face, no watermark, no random text.";
+
 export const CATEGORY_PREVIEW_TEMPLATES = {
   人設: {
     target: "character design portrait",
     instruction:
       "Create a character design portrait for a clearly adult female original ACG character. Role identity must be clear from distinctive silhouette, expression, costume direction, and aura. Do not make the subject look underage or masculine-presenting. Do not over-focus on hair, pose, outfit brand, or background unless they define the role.",
     avoid: "Avoid male or masculine-presenting subjects, generic attractive portrait drift, street-passenger neutrality, unclear role identity, and backgrounds that overpower the character.",
+  },
+  動漫角色: {
+    target: "anime character reference",
+    instruction:
+      "Create or select a clear character-reference preview where the named anime character and source series are the primary identity cues. Keep the image focused on recognizable character presence rather than a generic beautiful portrait.",
+    avoid: "Avoid unrelated characters, generic cosplay drift, wrong source series, random outfit redesigns, and image choices where the character cannot be recognized.",
   },
   臉部特徵: {
     target: "face study",
@@ -237,6 +246,7 @@ export const CATEGORY_PREVIEW_TEMPLATES = {
 } as const satisfies Record<Category, CategoryPreviewTemplate>;
 
 const DISPLAY_CATEGORY_LABELS: Partial<Record<Category, string>> = {
+  動漫角色: "Anime character",
   "Negative Atom": "Negative constraint",
 };
 
@@ -260,6 +270,10 @@ function displayCategory(category: Category) {
   return DISPLAY_CATEGORY_LABELS[category] ?? category;
 }
 
+function previewStyleForCategory(category: Category) {
+  return category === "動漫角色" ? ANIME_CHARACTER_PREVIEW_STYLE : GLOBAL_PREVIEW_STYLE;
+}
+
 export function buildAtomPreviewPrompt(input: AtomPreviewPromptInput) {
   const template = CATEGORY_PREVIEW_TEMPLATES[input.category];
   const title = cleanText(input.title);
@@ -277,7 +291,7 @@ export function buildAtomPreviewPrompt(input: AtomPreviewPromptInput) {
     negative ? `Negative guidance: ${negative}` : "",
     "",
     "Visual policy:",
-    GLOBAL_PREVIEW_STYLE,
+    previewStyleForCategory(input.category),
     "",
     "Category framing:",
     `Preview target: ${template.target}.`,

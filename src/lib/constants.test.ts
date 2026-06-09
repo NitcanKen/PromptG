@@ -11,6 +11,7 @@ import {
 
 const v2Categories = [
   "人設",
+  "動漫角色",
   "臉部特徵",
   "髮型",
   "表情",
@@ -49,7 +50,7 @@ const v2Categories = [
 ] as const;
 
 describe("category constants", () => {
-  it("exposes the v2 36-category taxonomy through metadata", () => {
+  it("exposes the prompt atom category taxonomy through metadata", () => {
     expect(CATEGORIES).toEqual(v2Categories);
     expect(CATEGORY_METADATA).toHaveLength(v2Categories.length);
     expect(CATEGORY_METADATA.map((category) => category.label)).toEqual(CATEGORIES);
@@ -94,7 +95,7 @@ describe("category constants", () => {
     expect(COMPILE_ORDER.slice(0, 3)).toEqual([
       "主體數量 / 人物關係",
       "人設",
-      "臉部特徵",
+      "動漫角色",
     ]);
     expect(COMPILE_ORDER.slice(-2)).toEqual(["尺寸", "質量"]);
   });
@@ -103,6 +104,7 @@ describe("category constants", () => {
     expect(new Set(SINGLE_SELECT_CATEGORIES)).toEqual(new Set([
       "主體數量 / 人物關係",
       "人設",
+      "動漫角色",
       "臉部特徵",
       "髮型",
       "表情",

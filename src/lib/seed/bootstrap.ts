@@ -145,6 +145,39 @@ function isOldPersonaAddonBoilerplate(row: {
   );
 }
 
+function isAnimeCharacterSeedAtom(row: { id: string }) {
+  return row.id.startsWith("library-anime-character-");
+}
+
+function needsAnimeCharacterMetadataBackfill(
+  row: {
+    id: string;
+    category: string;
+    title: string;
+    subtitle: string;
+    prompt: string;
+    negativePrompt: string;
+    priority: string;
+    lockPolicy: string;
+    tagsJson: string;
+    notes: string;
+  },
+  atom: (typeof EXPANDED_ATOMS)[number],
+) {
+  return (
+    isAnimeCharacterSeedAtom(row) &&
+    (row.category !== atom.category ||
+      row.title !== atom.title ||
+      row.subtitle !== atom.subtitle ||
+      row.prompt !== atom.prompt ||
+      row.negativePrompt !== atom.negativePrompt ||
+      row.priority !== (atom.priority ?? DEFAULT_PROMPT_PRIORITY) ||
+      row.lockPolicy !== (atom.lockPolicy ?? DEFAULT_LOCK_POLICY) ||
+      row.tagsJson !== JSON.stringify(atom.tags) ||
+      row.notes !== atom.notes)
+  );
+}
+
 export async function ensureSeedAtoms() {
   const db = getDb();
   const bootstrapped = await db
@@ -283,7 +316,11 @@ export async function ensureExpandedAtoms(options: EnsureExpandedAtomsOptions = 
       continue;
     }
 
-    if (isOldWeakTemplatedPersona(existing) || isOldPersonaAddonBoilerplate(existing)) {
+    if (
+      isOldWeakTemplatedPersona(existing) ||
+      isOldPersonaAddonBoilerplate(existing) ||
+      needsAnimeCharacterMetadataBackfill(existing, atom)
+    ) {
       await db
         .update(promptAtoms)
         .set({
@@ -296,7 +333,7 @@ export async function ensureExpandedAtoms(options: EnsureExpandedAtomsOptions = 
             generatedPreviewPath,
           )
             ? generatedPreviewPath
-            : existing.previewImagePath,
+            : existing.previewImagePath || atom.previewImagePath,
           prompt: atom.prompt,
           negativePrompt: atom.negativePrompt,
           priority: atom.priority ?? DEFAULT_PROMPT_PRIORITY,

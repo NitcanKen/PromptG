@@ -12,10 +12,7 @@ import {
 } from "@/lib/gemini/atom-preview-generator";
 import { buildAtomPreviewPrompt } from "@/lib/gemini/atom-preview-prompt-compiler";
 import { getCategoryTargetTotal, MAIN_SCOPE_CATEGORY_TARGETS } from "@/lib/seed/expanded-atom-targets";
-import {
-  EXPANDED_ANIME_CHARACTER_ATOMS,
-  EXPANDED_HAIR_ATOMS,
-} from "@/lib/seed/expanded-atoms";
+import { EXPANDED_HAIR_ATOMS } from "@/lib/seed/expanded-atoms";
 
 const tempDirs: string[] = [];
 
@@ -122,9 +119,7 @@ describe("atom preview generator", () => {
     const targets = selectAtomPreviewTargets({ scope: "main" });
     const ids = targets.map((atom) => atom.id);
 
-    expect(targets).toHaveLength(
-      getCategoryTargetTotal(MAIN_SCOPE_CATEGORY_TARGETS) + EXPANDED_ANIME_CHARACTER_ATOMS.length,
-    );
+    expect(targets).toHaveLength(getCategoryTargetTotal(MAIN_SCOPE_CATEGORY_TARGETS));
     expect(new Set(ids).size).toBe(targets.length);
     expect(ids).toContain("seed-persona-soft-cinematic");
     expect(ids).toContain("seed-hair-airy-bangs");
@@ -171,8 +166,8 @@ describe("atom preview generator", () => {
     });
 
     expect(generate).not.toHaveBeenCalled();
-    expect(result.planned).toHaveLength(36);
-    expect(new Set(result.planned.map((item) => item.category))).toHaveLength(36);
+    expect(result.planned).toHaveLength(37);
+    expect(new Set(result.planned.map((item) => item.category))).toHaveLength(37);
     expect(result.planned.every((item) => item.prompt.includes("Category framing:"))).toBe(true);
     await expect(fs.stat(path.join(outputDir, "manifest.json"))).rejects.toMatchObject({ code: "ENOENT" });
   });
