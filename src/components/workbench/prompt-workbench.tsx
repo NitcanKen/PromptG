@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 
 import {
+  CATEGORIES,
   CATEGORIES_BY_GROUP,
   CATEGORY_GROUPS,
   CATEGORY_METADATA_BY_LABEL,
@@ -134,6 +135,16 @@ type ParsedDraft = {
   lockPolicy: LockPolicy;
   tagsText: string;
   notes: string;
+};
+
+type HermesEnhancedPrompt = {
+  positivePrompt: string;
+  negativePrompt: string;
+  rewriteNotes: string[];
+  riskNotes: string[];
+  qualityNotes: string[];
+  riskLevel: "low" | "medium" | "high";
+  model?: MimoModel;
 };
 
 const emptyAtomForm: AtomFormState = {
@@ -296,6 +307,9 @@ export function PromptWorkbench() {
   const [isParsing, setIsParsing] = useState(false);
   const [parsedDrafts, setParsedDrafts] = useState<ParsedDraft[]>([]);
   const [isConfirmParsedOpen, setIsConfirmParsedOpen] = useState(false);
+  const [isEnhancingPrompt, setIsEnhancingPrompt] = useState(false);
+  const [enhanceError, setEnhanceError] = useState("");
+  const [enhancedPrompt, setEnhancedPrompt] = useState<HermesEnhancedPrompt | null>(null);
 
   const {
     selectedAtoms,
@@ -630,6 +644,57 @@ export function PromptWorkbench() {
     toast.success("已完成拆解，請確認後再保存");
   }
 
+  async function enhancePrompt() {
+    const rawCompiledPrompt = promptText.trim();
+
+    if (!rawCompiledPrompt) {
+      toast.warning("請先選擇素材或輸入自定義 Prompt");
+      return;
+    }
+
+    setEnhanceError("");
+    setIsEnhancingPrompt(true);
+
+    const hermesSelectedAtoms = Object.fromEntries(
+      CATEGORIES.map((category) => [
+        category,
+        (selectedAtoms[category] ?? []).map((atom) => ({
+          category: atom.category,
+          title: atom.title,
+          prompt: atom.prompt,
+          negativePrompt: atom.negativePrompt,
+          priority: atom.priority,
+          notes: atom.notes,
+        })),
+      ]),
+    );
+
+    const response = await fetch("/api/prompt/enhance", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        selectedAtoms: hermesSelectedAtoms,
+        rawCompiledPrompt,
+        rawNegativePrompt: negativePromptText,
+        sizePreset,
+        qualityPreset,
+        model: mimoModel,
+      }),
+    });
+    const data = (await response.json().catch(() => null)) as
+      | (HermesEnhancedPrompt & { error?: string })
+      | null;
+    setIsEnhancingPrompt(false);
+
+    if (!response.ok || !data?.positivePrompt) {
+      setEnhanceError(data?.error ?? "Hermes 增強失敗，請稍後再試");
+      return;
+    }
+
+    setEnhancedPrompt(data);
+    toast.success("Hermes 已完成 Prompt 增強");
+  }
+
   async function saveParsedDraft(draft: ParsedDraft) {
     const response = await fetch("/api/atoms", {
       method: "POST",
@@ -904,6 +969,99 @@ export function PromptWorkbench() {
                     placeholder="選擇 Negative Atom 或帶有 Negative Prompt 的素材後會自動生成"
                   />
                 </Field>
+                <div className="flex flex-col gap-3 rounded-md border bg-muted/20 p-3">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex flex-col gap-1">
+                      <h3 className="text-sm font-semibold">Hermes 增強 Prompt</h3>
+                      <p className="text-xs leading-5 text-muted-foreground">
+                        手動把目前 Prompt 改寫成分層 final prompt；只輸出文字，不會生成圖片。
+                      </p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void enhancePrompt()}
+                      disabled={isEnhancingPrompt}
+                    >
+                      {isEnhancingPrompt ? (
+                        <Spinner data-icon="inline-start" />
+                      ) : (
+                        <WandSparklesIcon data-icon="inline-start" />
+                      )}
+                      {isEnhancingPrompt ? "增強中" : "使用 Hermes 增強"}
+                    </Button>
+                  </div>
+                  {enhanceError && (
+                    <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                      {enhanceError}
+                    </div>
+                  )}
+                  {enhancedPrompt && (
+                    <div className="flex flex-col gap-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge variant="secondary">
+                          風險：{enhancedPrompt.riskLevel === "low" ? "低" : enhancedPrompt.riskLevel === "medium" ? "中" : "高"}
+                        </Badge>
+                        {enhancedPrompt.model && <Badge variant="outline">{enhancedPrompt.model}</Badge>}
+                      </div>
+                      <Field>
+                        <div className="flex items-center justify-between gap-2">
+                          <FieldLabel htmlFor="hermes-positive">增強後 Prompt</FieldLabel>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() =>
+                              void copyText(
+                                enhancedPrompt.positivePrompt,
+                                "目前沒有可複製的增強後 Prompt",
+                                "增強後 Prompt 已複製",
+                              )
+                            }
+                          >
+                            <ClipboardIcon data-icon="inline-start" />
+                            複製
+                          </Button>
+                        </div>
+                        <Textarea
+                          id="hermes-positive"
+                          value={enhancedPrompt.positivePrompt}
+                          readOnly
+                          className="min-h-[220px] resize-y font-mono text-sm leading-6"
+                        />
+                      </Field>
+                      <Field>
+                        <div className="flex items-center justify-between gap-2">
+                          <FieldLabel htmlFor="hermes-negative">增強後反向 Prompt</FieldLabel>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() =>
+                              void copyText(
+                                enhancedPrompt.negativePrompt,
+                                "目前沒有可複製的增強後反向 Prompt",
+                                "增強後反向 Prompt 已複製",
+                              )
+                            }
+                          >
+                            <ClipboardIcon data-icon="inline-start" />
+                            複製
+                          </Button>
+                        </div>
+                        <Textarea
+                          id="hermes-negative"
+                          value={enhancedPrompt.negativePrompt}
+                          readOnly
+                          className="min-h-24 resize-y font-mono text-sm leading-6"
+                        />
+                      </Field>
+                      <div className="grid gap-3 md:grid-cols-3">
+                        <HermesNoteList title="改寫紀錄" notes={enhancedPrompt.rewriteNotes} />
+                        <HermesNoteList title="風險紀錄" notes={enhancedPrompt.riskNotes} />
+                        <HermesNoteList title="品質紀錄" notes={enhancedPrompt.qualityNotes} />
+                      </div>
+                    </div>
+                  )}
+                </div>
               </CardContent>
               <CardFooter className="flex-wrap justify-end gap-2 border-t">
                 <Button
@@ -1117,6 +1275,19 @@ export function PromptWorkbench() {
         </AlertDialogContent>
       </AlertDialog>
     </main>
+  );
+}
+
+function HermesNoteList({ title, notes }: { title: string; notes: string[] }) {
+  return (
+    <section className="flex min-h-28 flex-col gap-2 rounded-md border bg-background p-3">
+      <h4 className="text-sm font-semibold">{title}</h4>
+      <ul className="flex flex-col gap-1 text-sm leading-6 text-muted-foreground">
+        {notes.map((note, index) => (
+          <li key={`${title}-${index}`}>{note}</li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
