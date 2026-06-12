@@ -3815,7 +3815,7 @@ export const EXPANDED_ANIME_CHARACTER_ATOMS = [
     category: "動漫角色",
     title: "Himeko Inaba",
     subtitle: "心連情結",
-    previewImagePath: "/api/uploads/atom-previews/library-anime-character-273/c221bff403d53d0c.jpg",
+    previewImagePath: "/api/uploads/atom-previews/library-anime-character-273/5bccd471c8730df5.jpg",
     prompt: "Himeko Inaba, anime character from Kokoro Connect",
     negativePrompt: "wrong character, unrelated anime character, low quality screenshot, distorted face",
     priority: "reference",
