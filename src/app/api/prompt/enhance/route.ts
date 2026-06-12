@@ -16,6 +16,9 @@ export async function POST(request: Request) {
     return NextResponse.json({
       ...result.data,
       model: result.model,
+      durationMs: result.durationMs,
+      tokenUsage: result.tokenUsage,
+      cost: result.cost,
     });
   } catch (error) {
     if (error instanceof ZodError) {

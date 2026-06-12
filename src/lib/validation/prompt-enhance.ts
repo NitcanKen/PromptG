@@ -8,6 +8,12 @@ import {
   MIMO_MODELS,
 } from "@/lib/constants";
 import {
+  DEFAULT_HERMES_ENHANCEMENT_PRESET,
+  DEFAULT_HERMES_OUTPUT_STYLE,
+  HERMES_ENHANCEMENT_PRESETS,
+  HERMES_OUTPUT_STYLES,
+} from "@/lib/hermes/options";
+import {
   categorySchema,
   promptPrioritySchema,
   qualityPresetSchema,
@@ -23,12 +29,21 @@ export const hermesSelectedAtomSchema = z.object({
   notes: z.string().trim().max(4000).default(""),
 });
 
+export const hermesEnhancementPresetSchema = z.enum(
+  HERMES_ENHANCEMENT_PRESETS.map((preset) => preset.id),
+);
+
+export const hermesOutputStyleSchema = z.enum(HERMES_OUTPUT_STYLES.map((style) => style.id));
+
 export const enhancePromptRequestSchema = z.object({
   selectedAtoms: z.partialRecord(categorySchema, z.array(hermesSelectedAtomSchema)).default({}),
   rawCompiledPrompt: z.string().trim().min(1, "請先選擇素材或輸入自定義 Prompt").max(30000),
   rawNegativePrompt: z.string().trim().max(20000).default(""),
   sizePreset: sizePresetSchema.default(DEFAULT_SIZE_PRESET),
   qualityPreset: qualityPresetSchema.default(DEFAULT_QUALITY_PRESET),
+  preset: hermesEnhancementPresetSchema.default(DEFAULT_HERMES_ENHANCEMENT_PRESET),
+  outputStyle: hermesOutputStyleSchema.default(DEFAULT_HERMES_OUTPUT_STYLE),
+  userInstruction: z.string().trim().max(4000).default(""),
   model: z.enum(MIMO_MODELS).default(DEFAULT_MIMO_MODEL),
 });
 
@@ -46,3 +61,5 @@ export const hermesPromptOutputSchema = z.object({
 export type EnhancePromptRequest = z.infer<typeof enhancePromptRequestSchema>;
 export type HermesPromptOutput = z.infer<typeof hermesPromptOutputSchema>;
 export type HermesRiskLevel = z.infer<typeof hermesRiskLevelSchema>;
+export type HermesEnhancementPreset = z.infer<typeof hermesEnhancementPresetSchema>;
+export type HermesOutputStyle = z.infer<typeof hermesOutputStyleSchema>;

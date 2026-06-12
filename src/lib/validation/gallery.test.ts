@@ -44,6 +44,31 @@ describe("gallery validation", () => {
     );
   });
 
+  it("accepts Hermes prompt provenance without image-generation artifacts", () => {
+    const parsed = galleryInputSchema.parse({
+      title: "Hermes 增強 Prompt",
+      prompt: "adult editorial portrait, controlled light, refined styling",
+      sizePreset: "1-1-1024",
+      qualityPreset: "high",
+      hermesProvenance: {
+        rawPrompt: "soft portrait, white blouse, window light",
+        enhancedPrompt: "adult editorial portrait, controlled light, refined styling",
+        negativePrompt: "underage, explicit nudity, distorted hands",
+        preset: "時尚 editorial",
+        outputStyle: "mixed technical prompt",
+        userInstruction: "保留自然皮膚質感。",
+        model: "mimo-v2.5-pro",
+        rewriteNotes: ["重組主體、造型、光影與鏡頭層次。"],
+        riskNotes: ["保持成年、得體、非低俗。"],
+        qualityNotes: ["補強自然手部與構圖平衡。"],
+        createdAt: "2026-06-12T14:30:00.000Z",
+      },
+    });
+
+    expect(parsed.hermesProvenance?.enhancedPrompt).toContain("adult editorial portrait");
+    expect(parsed.hermesProvenance?.model).toBe("mimo-v2.5-pro");
+  });
+
   it("keeps update payloads partial", () => {
     expect(galleryUpdateSchema.parse({ title: "新標題" })).toEqual({
       title: "新標題",

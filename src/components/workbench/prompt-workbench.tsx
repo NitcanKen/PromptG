@@ -55,8 +55,17 @@ import {
   type CategoryAtomCounts,
 } from "@/lib/atoms/category-counts";
 import { getVisibleTags } from "@/lib/atoms/tag-display";
+import {
+  DEFAULT_HERMES_ENHANCEMENT_PRESET,
+  DEFAULT_HERMES_OUTPUT_STYLE,
+  HERMES_ENHANCEMENT_PRESETS,
+  HERMES_OUTPUT_STYLES,
+  type HermesEnhancementPresetId,
+  type HermesOutputStyleId,
+} from "@/lib/hermes/options";
 import { compilePrompt } from "@/lib/prompt/compiler";
 import { cn } from "@/lib/utils";
+import type { HermesGalleryProvenance } from "@/lib/validation/gallery";
 import {
   useCurrentCombinationStore,
   type CompilerMode,
@@ -93,6 +102,7 @@ type GalleryItem = {
   tags: string[];
   notes: string;
   combinationSnapshot: CurrentCombinationSnapshot | null;
+  hermesProvenance: HermesGalleryProvenance | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -121,6 +131,7 @@ type GalleryFormState = {
   tagsText: string;
   notes: string;
   combinationSnapshot: CurrentCombinationSnapshot | null;
+  hermesProvenance: HermesGalleryProvenance | null;
 };
 
 type ParsedDraft = {
@@ -145,7 +156,24 @@ type HermesEnhancedPrompt = {
   qualityNotes: string[];
   riskLevel: "low" | "medium" | "high";
   model?: MimoModel;
+  durationMs?: number;
+  tokenUsage?: {
+    promptTokens?: number;
+    completionTokens?: number;
+    totalTokens?: number;
+  };
+  cost?: null;
+  sourcePrompt: string;
+  sourceNegativePrompt: string;
+  presetLabel: string;
+  outputStyleLabel: string;
+  userInstruction: string;
 };
+
+type HermesEnhanceResponse = Omit<
+  HermesEnhancedPrompt,
+  "sourcePrompt" | "sourceNegativePrompt" | "presetLabel" | "outputStyleLabel" | "userInstruction"
+>;
 
 const emptyAtomForm: AtomFormState = {
   category: DEFAULT_CATEGORY,
@@ -169,7 +197,36 @@ const emptyGalleryForm: GalleryFormState = {
   tagsText: "",
   notes: "",
   combinationSnapshot: null,
+  hermesProvenance: null,
 };
+
+function hermesPromptForGallery(prompt: HermesEnhancedPrompt) {
+  return prompt.negativePrompt
+    ? `${prompt.positivePrompt}\n\nNegative Prompt: ${prompt.negativePrompt}`
+    : prompt.positivePrompt;
+}
+
+function tokenCostText(prompt: Pick<HermesEnhancedPrompt, "tokenUsage" | "cost"> | null) {
+  if (!prompt?.tokenUsage && prompt?.cost == null) {
+    return "未提供 token/cost";
+  }
+
+  const tokens = prompt.tokenUsage?.totalTokens
+    ? `token：${prompt.tokenUsage.totalTokens}`
+    : "token：未提供";
+  const cost = prompt.cost == null ? "cost：未提供" : `cost：${prompt.cost}`;
+  return `${tokens}｜${cost}`;
+}
+
+function hermesStatusLabel(status: "idle" | "loading" | "success" | "error") {
+  const labels = {
+    idle: "待命",
+    loading: "增強中",
+    success: "成功",
+    error: "錯誤",
+  };
+  return labels[status];
+}
 
 function splitTags(tagsText: string) {
   return tagsText
@@ -236,6 +293,7 @@ function galleryToForm(item?: GalleryItem, fallback?: GalleryFormState): Gallery
     tagsText: item.tags.join("、"),
     notes: item.notes,
     combinationSnapshot: item.combinationSnapshot,
+    hermesProvenance: item.hermesProvenance,
   };
 }
 
@@ -249,6 +307,7 @@ function galleryFormPayload(form: GalleryFormState) {
     tags: splitTags(form.tagsText),
     notes: form.notes,
     combinationSnapshot: form.combinationSnapshot,
+    hermesProvenance: form.hermesProvenance,
   };
 }
 
@@ -309,7 +368,15 @@ export function PromptWorkbench() {
   const [isConfirmParsedOpen, setIsConfirmParsedOpen] = useState(false);
   const [isEnhancingPrompt, setIsEnhancingPrompt] = useState(false);
   const [enhanceError, setEnhanceError] = useState("");
+  const [hermesRequestStatus, setHermesRequestStatus] =
+    useState<"idle" | "loading" | "success" | "error">("idle");
   const [enhancedPrompt, setEnhancedPrompt] = useState<HermesEnhancedPrompt | null>(null);
+  const [hermesPreset, setHermesPreset] = useState<HermesEnhancementPresetId>(
+    DEFAULT_HERMES_ENHANCEMENT_PRESET,
+  );
+  const [hermesOutputStyle, setHermesOutputStyle] =
+    useState<HermesOutputStyleId>(DEFAULT_HERMES_OUTPUT_STYLE);
+  const [hermesUserInstruction, setHermesUserInstruction] = useState("");
 
   const {
     selectedAtoms,
@@ -341,6 +408,12 @@ export function PromptWorkbench() {
     0,
   );
   const categoryAtomCounts = useMemo(() => countAtomsByCategory(atoms), [atoms]);
+  const activeHermesPreset =
+    HERMES_ENHANCEMENT_PRESETS.find((preset) => preset.id === hermesPreset) ??
+    HERMES_ENHANCEMENT_PRESETS[0];
+  const activeHermesOutputStyle =
+    HERMES_OUTPUT_STYLES.find((style) => style.id === hermesOutputStyle) ??
+    HERMES_OUTPUT_STYLES[0];
   const currentSnapshot = useMemo<CurrentCombinationSnapshot | null>(() => {
     if (selectedCount === 0) {
       return null;
@@ -653,6 +726,7 @@ export function PromptWorkbench() {
     }
 
     setEnhanceError("");
+    setHermesRequestStatus("loading");
     setIsEnhancingPrompt(true);
 
     const hermesSelectedAtoms = Object.fromEntries(
@@ -678,21 +752,78 @@ export function PromptWorkbench() {
         rawNegativePrompt: negativePromptText,
         sizePreset,
         qualityPreset,
+        preset: hermesPreset,
+        outputStyle: hermesOutputStyle,
+        userInstruction: hermesUserInstruction,
         model: mimoModel,
       }),
     });
     const data = (await response.json().catch(() => null)) as
-      | (HermesEnhancedPrompt & { error?: string })
+      | (HermesEnhanceResponse & { error?: string })
       | null;
     setIsEnhancingPrompt(false);
 
     if (!response.ok || !data?.positivePrompt) {
       setEnhanceError(data?.error ?? "Hermes 增強失敗，請稍後再試");
+      setHermesRequestStatus("error");
       return;
     }
 
-    setEnhancedPrompt(data);
+    setEnhancedPrompt({
+      ...data,
+      sourcePrompt: rawCompiledPrompt,
+      sourceNegativePrompt: negativePromptText,
+      presetLabel: activeHermesPreset.label,
+      outputStyleLabel: activeHermesOutputStyle.label,
+      userInstruction: hermesUserInstruction.trim(),
+    });
+    setHermesRequestStatus("success");
     toast.success("Hermes 已完成 Prompt 增強");
+  }
+
+  function openSaveHermesGalleryForm() {
+    if (!enhancedPrompt) {
+      toast.warning("請先完成 Hermes 增強");
+      return;
+    }
+
+    const hermesProvenance: HermesGalleryProvenance = {
+      rawPrompt: enhancedPrompt.sourcePrompt,
+      enhancedPrompt: enhancedPrompt.positivePrompt,
+      negativePrompt: enhancedPrompt.negativePrompt,
+      preset: enhancedPrompt.presetLabel,
+      outputStyle: enhancedPrompt.outputStyleLabel,
+      userInstruction: enhancedPrompt.userInstruction,
+      model: enhancedPrompt.model ?? mimoModel,
+      rewriteNotes: enhancedPrompt.rewriteNotes,
+      riskNotes: enhancedPrompt.riskNotes,
+      qualityNotes: enhancedPrompt.qualityNotes,
+      createdAt: new Date().toISOString(),
+      durationMs: enhancedPrompt.durationMs,
+      tokenUsage: enhancedPrompt.tokenUsage,
+      cost: enhancedPrompt.cost ?? null,
+    };
+
+    const fallback: GalleryFormState = {
+      ...emptyGalleryForm,
+      title: "Hermes 增強 Prompt",
+      prompt: hermesPromptForGallery(enhancedPrompt),
+      sizePreset,
+      qualityPreset,
+      tagsText: "Hermes、增強 Prompt",
+      notes: [
+        `Hermes preset：${enhancedPrompt.presetLabel}`,
+        `語言模式：${enhancedPrompt.outputStyleLabel}`,
+        `模型：${enhancedPrompt.model ?? mimoModel}`,
+        `耗時：${enhancedPrompt.durationMs ?? 0} ms`,
+        tokenCostText(enhancedPrompt),
+      ].join("\n"),
+      combinationSnapshot: currentSnapshot,
+      hermesProvenance,
+    };
+
+    setGalleryForm(galleryToForm(undefined, fallback));
+    setIsGalleryFormOpen(true);
   }
 
   async function saveParsedDraft(draft: ParsedDraft) {
@@ -970,12 +1101,107 @@ export function PromptWorkbench() {
                   />
                 </Field>
                 <div className="flex flex-col gap-3 rounded-md border bg-muted/20 p-3">
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex flex-col gap-3">
                     <div className="flex flex-col gap-1">
                       <h3 className="text-sm font-semibold">Hermes 增強 Prompt</h3>
                       <p className="text-xs leading-5 text-muted-foreground">
                         手動把目前 Prompt 改寫成分層 final prompt；只輸出文字，不會生成圖片。
                       </p>
+                    </div>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <Field>
+                        <FieldLabel htmlFor="hermes-preset">增強 preset</FieldLabel>
+                        <Select
+                          items={HERMES_ENHANCEMENT_PRESETS.map((preset) => ({
+                            label: preset.label,
+                            value: preset.id,
+                          }))}
+                          value={hermesPreset}
+                          onValueChange={(value) =>
+                            value && setHermesPreset(value as HermesEnhancementPresetId)
+                          }
+                        >
+                          <SelectTrigger id="hermes-preset" className="w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectGroup>
+                              {HERMES_ENHANCEMENT_PRESETS.map((preset) => (
+                                <SelectItem key={preset.id} value={preset.id}>
+                                  {preset.label}
+                                </SelectItem>
+                              ))}
+                            </SelectGroup>
+                          </SelectContent>
+                        </Select>
+                        <FieldDescription>{activeHermesPreset.description}</FieldDescription>
+                      </Field>
+                      <Field>
+                        <FieldLabel htmlFor="hermes-output-style">語言模式</FieldLabel>
+                        <Select
+                          items={HERMES_OUTPUT_STYLES.map((style) => ({
+                            label: style.label,
+                            value: style.id,
+                          }))}
+                          value={hermesOutputStyle}
+                          onValueChange={(value) =>
+                            value && setHermesOutputStyle(value as HermesOutputStyleId)
+                          }
+                        >
+                          <SelectTrigger id="hermes-output-style" className="w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectGroup>
+                              {HERMES_OUTPUT_STYLES.map((style) => (
+                                <SelectItem key={style.id} value={style.id}>
+                                  {style.label}
+                                </SelectItem>
+                              ))}
+                            </SelectGroup>
+                          </SelectContent>
+                        </Select>
+                        <FieldDescription>{activeHermesOutputStyle.description}</FieldDescription>
+                      </Field>
+                    </div>
+                    <Field>
+                      <FieldLabel htmlFor="hermes-user-instruction">本次改寫偏好</FieldLabel>
+                      <Textarea
+                        id="hermes-user-instruction"
+                        value={hermesUserInstruction}
+                        onChange={(event) => setHermesUserInstruction(event.target.value)}
+                        className="min-h-20 resize-y text-sm leading-6"
+                        placeholder="例如：保留自然皮膚質感、降低商業棚拍感、加強角色設定稿語氣"
+                      />
+                      <FieldDescription>
+                        這是低優先級偏好，不會覆蓋成年、得體、非低俗與不產圖邊界。
+                      </FieldDescription>
+                    </Field>
+                    <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                      <Badge variant="secondary">目前 preset：{activeHermesPreset.label}</Badge>
+                      <Badge variant="secondary">語言模式：{activeHermesOutputStyle.label}</Badge>
+                      <Badge variant="outline">Hermes 模型：{mimoModel}</Badge>
+                      <span className="min-w-0">
+                        偏好：{hermesUserInstruction.trim() || "未填寫"}
+                      </span>
+                    </div>
+                    <div className="grid gap-2 rounded-md border bg-background p-3 text-sm md:grid-cols-3">
+                      <div>
+                        <span className="text-muted-foreground">狀態：</span>
+                        {hermesStatusLabel(hermesRequestStatus)}
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">模型：</span>
+                        {enhancedPrompt?.model ?? mimoModel}
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">耗時：</span>
+                        {enhancedPrompt?.durationMs != null ? `${enhancedPrompt.durationMs} ms` : "尚未執行"}
+                      </div>
+                      <div className="md:col-span-3">
+                        <span className="text-muted-foreground">token/cost：</span>
+                        {tokenCostText(enhancedPrompt)}
+                      </div>
                     </div>
                     <Button
                       variant="outline"
@@ -990,45 +1216,100 @@ export function PromptWorkbench() {
                       )}
                       {isEnhancingPrompt ? "增強中" : "使用 Hermes 增強"}
                     </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={openSaveHermesGalleryForm}
+                      disabled={!enhancedPrompt}
+                    >
+                      <SaveIcon data-icon="inline-start" />
+                      保存 Hermes 到 Gallery
+                    </Button>
                   </div>
                   {enhanceError && (
                     <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
                       {enhanceError}
                     </div>
                   )}
+                  {!enhancedPrompt && (
+                    <div className="grid gap-3 xl:grid-cols-2">
+                      <div className="rounded-md border border-dashed bg-background p-3">
+                        <div className="text-sm font-medium">原始 Prompt</div>
+                        <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                          執行 Hermes 後會在這裡保留本次送出的 raw compiled prompt。
+                        </p>
+                      </div>
+                      <div className="rounded-md border border-dashed bg-background p-3">
+                        <div className="text-sm font-medium">增強後 Prompt</div>
+                        <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                          執行 Hermes 後會在這裡顯示可複製的 final prompt 對照。
+                        </p>
+                      </div>
+                    </div>
+                  )}
                   {enhancedPrompt && (
                     <div className="flex flex-col gap-3">
                       <div className="flex flex-wrap items-center gap-2">
+                        <Badge variant="secondary">preset：{enhancedPrompt.presetLabel}</Badge>
+                        <Badge variant="secondary">語言：{enhancedPrompt.outputStyleLabel}</Badge>
                         <Badge variant="secondary">
                           風險：{enhancedPrompt.riskLevel === "low" ? "低" : enhancedPrompt.riskLevel === "medium" ? "中" : "高"}
                         </Badge>
                         {enhancedPrompt.model && <Badge variant="outline">{enhancedPrompt.model}</Badge>}
                       </div>
-                      <Field>
-                        <div className="flex items-center justify-between gap-2">
-                          <FieldLabel htmlFor="hermes-positive">增強後 Prompt</FieldLabel>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() =>
-                              void copyText(
-                                enhancedPrompt.positivePrompt,
-                                "目前沒有可複製的增強後 Prompt",
-                                "增強後 Prompt 已複製",
-                              )
-                            }
-                          >
-                            <ClipboardIcon data-icon="inline-start" />
-                            複製
-                          </Button>
+                      <div className="grid gap-2 rounded-md border bg-background p-3 text-sm md:grid-cols-3">
+                        <div>
+                          <span className="text-muted-foreground">請求狀態：</span>
+                          {hermesStatusLabel(hermesRequestStatus)}
                         </div>
-                        <Textarea
-                          id="hermes-positive"
-                          value={enhancedPrompt.positivePrompt}
-                          readOnly
-                          className="min-h-[220px] resize-y font-mono text-sm leading-6"
-                        />
-                      </Field>
+                        <div>
+                          <span className="text-muted-foreground">耗時：</span>
+                          {enhancedPrompt.durationMs ?? 0} ms
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">token/cost：</span>
+                          {tokenCostText(enhancedPrompt)}
+                        </div>
+                      </div>
+                      <div className="rounded-md border bg-background px-3 py-2 text-sm leading-6 text-muted-foreground">
+                        本次偏好：{enhancedPrompt.userInstruction || "未填寫"}
+                      </div>
+                      <div className="grid gap-3 xl:grid-cols-2">
+                        <Field>
+                          <FieldLabel htmlFor="hermes-source-positive">原始 Prompt</FieldLabel>
+                          <Textarea
+                            id="hermes-source-positive"
+                            value={enhancedPrompt.sourcePrompt}
+                            readOnly
+                            className="min-h-[220px] resize-y font-mono text-sm leading-6"
+                          />
+                        </Field>
+                        <Field>
+                          <div className="flex items-center justify-between gap-2">
+                            <FieldLabel htmlFor="hermes-positive">增強後 Prompt</FieldLabel>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() =>
+                                void copyText(
+                                  enhancedPrompt.positivePrompt,
+                                  "目前沒有可複製的增強後 Prompt",
+                                  "增強後 Prompt 已複製",
+                                )
+                              }
+                            >
+                              <ClipboardIcon data-icon="inline-start" />
+                              複製
+                            </Button>
+                          </div>
+                          <Textarea
+                            id="hermes-positive"
+                            value={enhancedPrompt.positivePrompt}
+                            readOnly
+                            className="min-h-[220px] resize-y font-mono text-sm leading-6"
+                          />
+                        </Field>
+                      </div>
                       <Field>
                         <div className="flex items-center justify-between gap-2">
                           <FieldLabel htmlFor="hermes-negative">增強後反向 Prompt</FieldLabel>
@@ -1825,7 +2106,13 @@ function GalleryFormDialog({
         <form onSubmit={onSubmit} className="flex flex-col gap-4">
           <DialogHeader>
             <DialogTitle>{form.id ? "編輯 Gallery" : "保存到 Gallery"}</DialogTitle>
-            <DialogDescription>{form.combinationSnapshot ? "此項目會保存可還原的當前組合 snapshot。" : "沒有素材 snapshot 時，套用後會載入自定義 Prompt 模式。"}</DialogDescription>
+            <DialogDescription>
+              {form.hermesProvenance
+                ? "此項目會保存 Hermes prompt provenance，不保存任何生成圖片。"
+                : form.combinationSnapshot
+                  ? "此項目會保存可還原的當前組合 snapshot。"
+                  : "沒有素材 snapshot 時，套用後會載入自定義 Prompt 模式。"}
+            </DialogDescription>
           </DialogHeader>
           <FieldGroup>
             <Field>
@@ -1855,6 +2142,17 @@ function GalleryFormDialog({
               <Input id="gallery-tags" value={form.tagsText} onChange={(event) => onFormChange((current) => ({ ...current, tagsText: event.target.value }))} placeholder="用頓號或逗號分隔" />
             </Field>
             <TextareaField id="gallery-notes" label="備註" value={form.notes} onChange={(value) => onFormChange((current) => ({ ...current, notes: value }))} />
+            {form.hermesProvenance && (
+              <div className="rounded-md border bg-muted/30 p-3 text-sm leading-6">
+                <div className="font-medium">Hermes provenance</div>
+                <div className="text-muted-foreground">
+                  preset：{form.hermesProvenance.preset}｜語言：{form.hermesProvenance.outputStyle}｜模型：{form.hermesProvenance.model}
+                </div>
+                <div className="text-muted-foreground">
+                  耗時：{form.hermesProvenance.durationMs ?? 0} ms｜token/cost：{tokenCostText(form.hermesProvenance)}
+                </div>
+              </div>
+            )}
           </FieldGroup>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>取消</Button>
@@ -2189,10 +2487,30 @@ function GalleryDetailDialog({
   return (
     <Dialog open={Boolean(item)} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-2xl">
-        <DialogHeader><DialogTitle>{item?.title}</DialogTitle><DialogDescription>{item?.combinationSnapshot ? "此 Gallery 可還原當前組合。" : "此 Gallery 會載入自定義 Prompt 模式。"}</DialogDescription></DialogHeader>
+        <DialogHeader>
+          <DialogTitle>{item?.title}</DialogTitle>
+          <DialogDescription>
+            {item?.hermesProvenance
+              ? "此 Gallery 包含 Hermes prompt provenance。"
+              : item?.combinationSnapshot
+                ? "此 Gallery 可還原當前組合。"
+                : "此 Gallery 會載入自定義 Prompt 模式。"}
+          </DialogDescription>
+        </DialogHeader>
         {item && (
           <>
             <DetailBody previewImagePath={item.previewImagePath} prompt={item.prompt} negativePrompt="" notes={item.notes} tags={item.tags} />
+            {item.hermesProvenance && (
+              <div className="rounded-md border bg-muted/30 p-3 text-sm leading-6">
+                <div className="font-medium">Hermes provenance</div>
+                <div className="text-muted-foreground">
+                  preset：{item.hermesProvenance.preset}｜語言：{item.hermesProvenance.outputStyle}｜模型：{item.hermesProvenance.model}
+                </div>
+                <div className="text-muted-foreground">
+                  耗時：{item.hermesProvenance.durationMs ?? 0} ms｜token/cost：{tokenCostText(item.hermesProvenance)}
+                </div>
+              </div>
+            )}
             <DialogFooter>
               <Button variant="outline" onClick={() => onCopy(item)}><ClipboardIcon data-icon="inline-start" />複製</Button>
               <Button variant="outline" onClick={() => onParse(item.prompt)}><WandSparklesIcon data-icon="inline-start" />拆解</Button>

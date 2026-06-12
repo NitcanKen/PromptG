@@ -2,8 +2,14 @@ import { describe, expect, it } from "vitest";
 
 import {
   enhancePromptRequestSchema,
+  hermesEnhancementPresetSchema,
+  hermesOutputStyleSchema,
   hermesPromptOutputSchema,
 } from "@/lib/validation/prompt-enhance";
+import {
+  HERMES_ENHANCEMENT_PRESETS,
+  HERMES_OUTPUT_STYLES,
+} from "@/lib/hermes/options";
 
 describe("enhancePromptRequestSchema", () => {
   it("accepts selected atoms, raw prompt text, size, quality, and model", () => {
@@ -29,6 +35,42 @@ describe("enhancePromptRequestSchema", () => {
     expect(request.selectedAtoms["人設"]?.[0].title).toBe("柔和人像");
     expect(request.rawCompiledPrompt).toContain("adult woman");
     expect(request.rawNegativePrompt).toBe("plastic skin");
+  });
+
+  it("accepts P1 preset, output style, and bounded user instruction controls", () => {
+    const request = enhancePromptRequestSchema.parse({
+      selectedAtoms: {},
+      rawCompiledPrompt: "adult character portrait, soft daylight",
+      preset: "fashion-editorial",
+      outputStyle: "english",
+      userInstruction: "更像高級雜誌封面，但保留自然皮膚質感。",
+    });
+
+    expect(request.preset).toBe("fashion-editorial");
+    expect(request.outputStyle).toBe("english");
+    expect(request.userInstruction).toBe("更像高級雜誌封面，但保留自然皮膚質感。");
+  });
+
+  it("exposes the required Hermes preset and output style choices", () => {
+    expect(HERMES_ENHANCEMENT_PRESETS.map((preset) => preset.label)).toEqual([
+      "克制高級",
+      "時尚 editorial",
+      "角色美術感",
+      "寫實社群自拍",
+    ]);
+    expect(HERMES_OUTPUT_STYLES.map((style) => style.label)).toEqual([
+      "中文 final prompt",
+      "English final prompt",
+      "mixed technical prompt",
+    ]);
+
+    for (const preset of HERMES_ENHANCEMENT_PRESETS) {
+      expect(hermesEnhancementPresetSchema.parse(preset.id)).toBe(preset.id);
+    }
+
+    for (const style of HERMES_OUTPUT_STYLES) {
+      expect(hermesOutputStyleSchema.parse(style.id)).toBe(style.id);
+    }
   });
 });
 

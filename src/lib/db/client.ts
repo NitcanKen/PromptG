@@ -66,10 +66,20 @@ function bootstrap(sqlite: Database.Database) {
       tags_json TEXT NOT NULL DEFAULT '[]',
       notes TEXT NOT NULL DEFAULT '',
       combination_snapshot_json TEXT NOT NULL DEFAULT '{}',
+      hermes_provenance_json TEXT NOT NULL DEFAULT '{}',
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     )
   `);
+
+  const galleryColumns = sqlite
+    .prepare("PRAGMA table_info(gallery_items)")
+    .all() as Array<{ name: string }>;
+  const galleryColumnNames = new Set(galleryColumns.map((column) => column.name));
+
+  if (!galleryColumnNames.has("hermes_provenance_json")) {
+    sqlite.exec("ALTER TABLE gallery_items ADD COLUMN hermes_provenance_json TEXT NOT NULL DEFAULT '{}'");
+  }
 
   db.run(sql`
     CREATE TABLE IF NOT EXISTS app_settings (

@@ -53,6 +53,9 @@ const request = {
   rawNegativePrompt: "plastic skin",
   sizePreset: "1-1-1024",
   qualityPreset: "high",
+  preset: "fashion-editorial",
+  outputStyle: "mixed-technical",
+  userInstruction: "保留雜誌感，但不要過度磨皮。",
   model: "mimo-v2.5-pro",
 };
 
@@ -64,6 +67,12 @@ const validHermesOutput = {
   riskNotes: ["保持成年、得體、非明確成人內容。"],
   qualityNotes: ["補強自然手部、皮膚材質與畫面平衡。"],
   riskLevel: "low",
+};
+
+const mimoUsage = {
+  prompt_tokens: 120,
+  completion_tokens: 80,
+  total_tokens: 200,
 };
 
 describe("buildHermesSystemPrompt", () => {
@@ -113,6 +122,8 @@ describe("enhancePromptWithMimo", () => {
     expect(result.data.positivePrompt).toContain("coherent editorial portrait");
     expect(result.data.negativePrompt).toContain("underage");
     expect(result.model).toBe("mimo-v2.5-pro");
+    expect(result.durationMs).toBeGreaterThanOrEqual(0);
+    expect(result.cost).toBeNull();
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)) as {
       response_format?: { type?: string };
@@ -120,6 +131,78 @@ describe("enhancePromptWithMimo", () => {
     };
     expect(body.response_format).toEqual({ type: "json_object" });
     expect(body.messages[1].content).toContain("rawCompiledPrompt");
+    expect(body.messages[1].content).toContain("時尚 editorial");
+    expect(body.messages[1].content).toContain("mixed technical prompt");
+    expect(body.messages[1].content).toContain("保留雜誌感，但不要過度磨皮。");
+    expect(body.messages[1].content).toContain("低優先級偏好");
+  });
+
+  it("returns provider token usage when Mimo supplies usage metadata", async () => {
+    process.env.XIAOMI_MIMO_API_KEY = "test-key";
+    const fetchMock = vi.fn(async () =>
+      Response.json({
+        choices: [{ message: { content: JSON.stringify(validHermesOutput) } }],
+        usage: mimoUsage,
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await enhancePromptWithMimo(request);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.tokenUsage).toEqual({
+      promptTokens: 120,
+      completionTokens: 80,
+      totalTokens: 200,
+    });
+    expect(result.cost).toBeNull();
+  });
+
+  it("keeps the P1 controls inside layered prompt assembly and below global boundaries", async () => {
+    process.env.XIAOMI_MIMO_API_KEY = "test-key";
+    const fetchMock = vi.fn(async () =>
+      Response.json({
+        choices: [{ message: { content: JSON.stringify(validHermesOutput) } }],
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await enhancePromptWithMimo({
+      ...request,
+      preset: "character-art",
+      outputStyle: "zh",
+      userInstruction: "請偏向角色設定稿，不要變成商業棚拍。",
+    });
+
+    const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)) as {
+      messages: Array<{ role: string; content: string }>;
+    };
+    const systemPrompt = body.messages[0].content;
+    const userPrompt = body.messages[1].content;
+
+    expect(systemPrompt).toContain("preset、outputStyle、userInstruction");
+    expect(systemPrompt).toContain("不得覆蓋全局成年、得體、非低俗邊界");
+    expect(userPrompt).toContain("角色美術感");
+    expect(userPrompt).toContain("中文 final prompt");
+    expect(userPrompt).toContain("請偏向角色設定稿，不要變成商業棚拍。");
+  });
+
+  it("calls only the Mimo chat completions endpoint and no image API", async () => {
+    process.env.XIAOMI_MIMO_API_KEY = "test-key";
+    process.env.XIAOMI_MIMO_BASE_URL = "https://mimo.test/v1";
+    const fetchMock = vi.fn(async () =>
+      Response.json({
+        choices: [{ message: { content: JSON.stringify(validHermesOutput) } }],
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await enhancePromptWithMimo(request);
+
+    expect(result.ok).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe("https://mimo.test/v1/chat/completions");
   });
 
   it("makes at most one repair attempt when Mimo returns invalid Hermes JSON", async () => {

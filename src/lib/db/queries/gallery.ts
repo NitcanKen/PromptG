@@ -3,7 +3,12 @@ import { randomUUID } from "node:crypto";
 
 import { getDb } from "@/lib/db/client";
 import { galleryItems, type GalleryItemRow } from "@/lib/db/schema";
-import type { GalleryInput, GallerySearch, GalleryUpdate } from "@/lib/validation/gallery";
+import type {
+  GalleryInput,
+  GallerySearch,
+  GalleryUpdate,
+  HermesGalleryProvenance,
+} from "@/lib/validation/gallery";
 import type { CombinationSnapshotInput } from "@/lib/validation/shared";
 
 export type GalleryItem = {
@@ -16,6 +21,7 @@ export type GalleryItem = {
   tags: string[];
   notes: string;
   combinationSnapshot: CombinationSnapshotInput | null;
+  hermesProvenance: HermesGalleryProvenance | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -33,6 +39,10 @@ export function toGalleryItem(row: GalleryItemRow): GalleryItem {
     row.combinationSnapshotJson,
     null,
   );
+  const provenance = parseJson<HermesGalleryProvenance | null>(
+    row.hermesProvenanceJson,
+    null,
+  );
 
   return {
     id: row.id,
@@ -45,6 +55,8 @@ export function toGalleryItem(row: GalleryItemRow): GalleryItem {
     notes: row.notes,
     combinationSnapshot:
       snapshot && Object.keys(snapshot.selectedAtoms ?? {}).length > 0 ? snapshot : null,
+    hermesProvenance:
+      provenance && Object.keys(provenance).length > 0 ? provenance : null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -96,6 +108,7 @@ export async function createGalleryItem(input: GalleryInput) {
     tagsJson: JSON.stringify(input.tags),
     notes: input.notes,
     combinationSnapshotJson: JSON.stringify(input.combinationSnapshot ?? null),
+    hermesProvenanceJson: JSON.stringify(input.hermesProvenance ?? null),
     createdAt: now,
     updatedAt: now,
   };
@@ -123,6 +136,9 @@ export async function updateGalleryItem(id: string, input: GalleryUpdate) {
     ...("notes" in input ? { notes: input.notes } : {}),
     ...("combinationSnapshot" in input
       ? { combinationSnapshotJson: JSON.stringify(input.combinationSnapshot ?? null) }
+      : {}),
+    ...("hermesProvenance" in input
+      ? { hermesProvenanceJson: JSON.stringify(input.hermesProvenance ?? null) }
       : {}),
     updatedAt: new Date().toISOString(),
   };

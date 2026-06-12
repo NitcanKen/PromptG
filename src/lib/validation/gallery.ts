@@ -6,6 +6,29 @@ import {
   sizePresetSchema,
 } from "@/lib/validation/shared";
 
+export const hermesGalleryProvenanceSchema = z.object({
+  rawPrompt: z.string().trim().min(1).max(30000),
+  enhancedPrompt: z.string().trim().min(1).max(30000),
+  negativePrompt: z.string().trim().max(20000).default(""),
+  preset: z.string().trim().min(1).max(120),
+  outputStyle: z.string().trim().min(1).max(120),
+  userInstruction: z.string().trim().max(4000).default(""),
+  model: z.string().trim().min(1).max(120),
+  rewriteNotes: z.array(z.string().trim().min(1).max(800)).min(1).max(12),
+  riskNotes: z.array(z.string().trim().min(1).max(800)).min(1).max(12),
+  qualityNotes: z.array(z.string().trim().min(1).max(800)).min(1).max(12),
+  createdAt: z.string().trim().min(1).max(80),
+  durationMs: z.number().int().nonnegative().optional(),
+  tokenUsage: z
+    .object({
+      promptTokens: z.number().int().nonnegative().optional(),
+      completionTokens: z.number().int().nonnegative().optional(),
+      totalTokens: z.number().int().nonnegative().optional(),
+    })
+    .optional(),
+  cost: z.null().optional(),
+});
+
 const galleryBaseShape = {
   title: z.string().trim().min(1, "請輸入 Gallery 標題").max(100, "Gallery 標題過長"),
   previewImagePath: z.string().trim().max(500),
@@ -15,6 +38,7 @@ const galleryBaseShape = {
   tags: z.array(z.string().trim().min(1).max(24)).max(12),
   notes: z.string().trim().max(4000),
   combinationSnapshot: combinationSnapshotSchema.nullish(),
+  hermesProvenance: hermesGalleryProvenanceSchema.nullish(),
 };
 
 export const galleryInputSchema = z.object({
@@ -38,3 +62,4 @@ export const gallerySearchSchema = z.object({
 export type GalleryInput = z.infer<typeof galleryInputSchema>;
 export type GalleryUpdate = z.infer<typeof galleryUpdateSchema>;
 export type GallerySearch = z.infer<typeof gallerySearchSchema>;
+export type HermesGalleryProvenance = z.infer<typeof hermesGalleryProvenanceSchema>;

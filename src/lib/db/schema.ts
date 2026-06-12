@@ -26,6 +26,7 @@ export const galleryItems = sqliteTable("gallery_items", {
   tagsJson: text("tags_json").notNull().default("[]"),
   notes: text("notes").notNull().default(""),
   combinationSnapshotJson: text("combination_snapshot_json").notNull().default("{}"),
+  hermesProvenanceJson: text("hermes_provenance_json").notNull().default("{}"),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
 });
